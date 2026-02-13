@@ -1,9 +1,10 @@
 import { z } from "zod";
 
 export type Locale = "zh-CN" | "en-US";
-export type AppView = "dashboard" | "projects" | "tasks" | "notes" | "settings";
+export type AppView = "dashboard" | "projects" | "tasks" | "notes" | "settings" | "pomodoro";
 export type ThemeMode = "system" | "light" | "dark";
 export type WindowSizePreset = "small" | "medium" | "large" | "custom";
+export type TimerPhase = "work" | "shortBreak" | "longBreak";
 
 export const PROJECT_STATUSES = ["planning", "active", "completed"] as const;
 export const TASK_STATUSES = ["todo", "doing", "done"] as const;

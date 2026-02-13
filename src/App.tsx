@@ -20,6 +20,7 @@ import {
   RotateCcw,
   Settings2,
   Sparkles,
+  Timer,
   Trash2,
   XCircle,
 } from "lucide-react";
@@ -44,6 +45,7 @@ import {
 } from "@/domain/models";
 import { projectProgress, timelineBounds, workspaceMetrics } from "@/application/metrics";
 import { selectCurrentProject, useWorkspaceStore } from "@/store/workspaceStore";
+import { PomodoroPage } from "@/components/pomodoro/PomodoroPage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1642,6 +1644,7 @@ function App() {
 
   const navItems = [
     { key: "dashboard", label: t.views.dashboard, icon: LayoutDashboard },
+    { key: "pomodoro", label: t.views.pomodoro, icon: Timer },
     { key: "projects", label: t.views.projects, icon: FolderKanban },
     { key: "tasks", label: t.views.tasks, icon: ListTodo },
     { key: "notes", label: t.views.notes, icon: BookText },
@@ -1718,9 +1721,10 @@ function App() {
 
         <main
           className={`panel-scroll min-h-0 p-4 md:p-6 ${
-            view === "tasks" ? "flex flex-col gap-4 overflow-hidden" : "space-y-4 overflow-y-auto"
+            view === "tasks" || view === "pomodoro" ? "flex flex-col gap-4 overflow-hidden" : "space-y-4 overflow-y-auto"
           }`}
         >
+          {view !== "pomodoro" && (
           <header className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-xl font-semibold tracking-tight">{t.views[view]}</h2>
             {currentProject && view !== "settings" ? (
@@ -1754,6 +1758,7 @@ function App() {
               </div>
             ) : null}
           </header>
+          )}
 
           <AnimatePresence mode="wait" initial={false}>
             {view === "dashboard" ? (
@@ -2689,6 +2694,10 @@ function App() {
                 </CardContent>
               </Card>
             </motion.section>
+          ) : null}
+
+          {view === "pomodoro" ? (
+            <PomodoroPage />
           ) : null}
 
           {view === "settings" ? (

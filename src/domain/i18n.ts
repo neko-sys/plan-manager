@@ -1,4 +1,4 @@
-import type { AppView, Locale, ProjectStatus, TaskPriority, TaskStatus } from "./models";
+import type { AppView, Locale, ProjectStatus, TaskPriority, TaskStatus, TimerPhase } from "./models";
 
 type I18nPack = {
   appTitle: string;
@@ -62,6 +62,52 @@ type I18nPack = {
     days: string;
     hours: string;
   };
+  pomodoro: {
+    title: string;
+    subtitle: string;
+    phases: Record<TimerPhase, string>;
+    actions: {
+      start: string;
+      pause: string;
+      resume: string;
+      reset: string;
+      skip: string;
+    };
+    settings: {
+      title: string;
+      workDuration: string;
+      shortBreakDuration: string;
+      longBreakDuration: string;
+      sessionsBeforeLongBreak: string;
+      autoStartBreaks: string;
+      autoStartWork: string;
+      soundEnabled: string;
+      notificationEnabled: string;
+      vibrationEnabled: string;
+      volume: string;
+    };
+    stats: {
+      title: string;
+      today: string;
+      week: string;
+      month: string;
+      completed: string;
+      focusTime: string;
+      breakTime: string;
+      pomodoros: string;
+      minutes: string;
+    };
+    task: {
+      selectTask: string;
+      noTask: string;
+      linkedTo: string;
+    };
+    export: {
+      title: string;
+      json: string;
+      csv: string;
+    };
+  };
 };
 
 export const packs: Record<Locale, I18nPack> = {
@@ -74,6 +120,7 @@ export const packs: Record<Locale, I18nPack> = {
       tasks: "任务",
       notes: "笔记",
       settings: "设置",
+      pomodoro: "番茄钟",
     },
     kpi: {
       projects: "项目数",
@@ -144,6 +191,56 @@ export const packs: Record<Locale, I18nPack> = {
       days: "天",
       hours: "小时",
     },
+    pomodoro: {
+      title: "番茄钟",
+      subtitle: "专注工作，高效休息",
+      phases: {
+        work: "专注",
+        shortBreak: "短休息",
+        longBreak: "长休息",
+      },
+      actions: {
+        start: "开始",
+        pause: "暂停",
+        resume: "继续",
+        reset: "重置",
+        skip: "跳过",
+      },
+      settings: {
+        title: "番茄钟设置",
+        workDuration: "工作时长",
+        shortBreakDuration: "短休息时长",
+        longBreakDuration: "长休息时长",
+        sessionsBeforeLongBreak: "长休息间隔",
+        autoStartBreaks: "自动开始休息",
+        autoStartWork: "自动开始工作",
+        soundEnabled: "声音提醒",
+        notificationEnabled: "桌面通知",
+        vibrationEnabled: "震动提醒",
+        volume: "音量",
+      },
+      stats: {
+        title: "统计数据",
+        today: "今日",
+        week: "本周",
+        month: "本月",
+        completed: "已完成",
+        focusTime: "专注时长",
+        breakTime: "休息时长",
+        pomodoros: "个番茄",
+        minutes: "分钟",
+      },
+      task: {
+        selectTask: "选择任务",
+        noTask: "未关联任务",
+        linkedTo: "关联任务",
+      },
+      export: {
+        title: "导出数据",
+        json: "导出 JSON",
+        csv: "导出 CSV",
+      },
+    },
   },
   "en-US": {
     appTitle: "Personal Planning Hub",
@@ -154,6 +251,7 @@ export const packs: Record<Locale, I18nPack> = {
       tasks: "Tasks",
       notes: "Notes",
       settings: "Settings",
+      pomodoro: "Pomodoro",
     },
     kpi: {
       projects: "Projects",
@@ -223,6 +321,56 @@ export const packs: Record<Locale, I18nPack> = {
     units: {
       days: "days",
       hours: "hours",
+    },
+    pomodoro: {
+      title: "Pomodoro",
+      subtitle: "Focus work, effective rest",
+      phases: {
+        work: "Focus",
+        shortBreak: "Short Break",
+        longBreak: "Long Break",
+      },
+      actions: {
+        start: "Start",
+        pause: "Pause",
+        resume: "Resume",
+        reset: "Reset",
+        skip: "Skip",
+      },
+      settings: {
+        title: "Pomodoro Settings",
+        workDuration: "Work Duration",
+        shortBreakDuration: "Short Break Duration",
+        longBreakDuration: "Long Break Duration",
+        sessionsBeforeLongBreak: "Sessions Before Long Break",
+        autoStartBreaks: "Auto Start Breaks",
+        autoStartWork: "Auto Start Work",
+        soundEnabled: "Sound Alert",
+        notificationEnabled: "Desktop Notification",
+        vibrationEnabled: "Vibration Alert",
+        volume: "Volume",
+      },
+      stats: {
+        title: "Statistics",
+        today: "Today",
+        week: "This Week",
+        month: "This Month",
+        completed: "Completed",
+        focusTime: "Focus Time",
+        breakTime: "Break Time",
+        pomodoros: "pomodoros",
+        minutes: "minutes",
+      },
+      task: {
+        selectTask: "Select Task",
+        noTask: "No task linked",
+        linkedTo: "Linked to",
+      },
+      export: {
+        title: "Export Data",
+        json: "Export JSON",
+        csv: "Export CSV",
+      },
     },
   },
 };
