@@ -1,14 +1,17 @@
 import { type FormEvent, type MouseEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
+  Battery,
   Bell,
   BookText,
+  Brain,
   CalendarDays,
   Check,
   ChevronLeft,
   ChevronRight,
   CheckCircle2,
   Copy,
+  Flame,
   FolderKanban,
   HeartPulse,
   LayoutDashboard,
@@ -19,10 +22,12 @@ import {
   Plus,
   RotateCcw,
   Settings2,
+  Smile,
   Sparkles,
   Timer,
   Trash2,
   XCircle,
+  Zap,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { Steps } from "antd";
@@ -171,6 +176,20 @@ const taskStatusTriggerTone: Record<TaskStatus, string> = {
   todo: "border-slate-500/40 bg-slate-500/10 text-slate-700 dark:text-slate-300",
   doing: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300",
   done: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+};
+const moodColors: Record<1 | 2 | 3 | 4 | 5, string> = {
+  1: "bg-rose-500",
+  2: "bg-orange-500",
+  3: "bg-amber-500",
+  4: "bg-lime-500",
+  5: "bg-emerald-500",
+};
+const energyColors: Record<1 | 2 | 3 | 4 | 5, string> = {
+  1: "bg-slate-500",
+  2: "bg-sky-500",
+  3: "bg-cyan-500",
+  4: "bg-blue-500",
+  5: "bg-violet-500",
 };
 const ganttTaskBarTone: Record<TaskStatus, string> = {
   todo: "bg-slate-400 ring-1 ring-slate-500/40",
@@ -1654,12 +1673,12 @@ function App() {
   return (
     <div className="h-dvh overflow-hidden bg-muted/20">
       <div className="mx-auto grid h-full min-h-0 max-w-[1600px] grid-cols-1 md:grid-cols-[280px_1fr]">
-        <aside className="panel-scroll min-h-0 overflow-y-auto border-r bg-background/95 p-4 md:p-5">
-          <div className="mb-4">
+        <aside className="flex min-h-0 flex-col border-r bg-background/95">
+          <div className="shrink-0 p-4 md:p-5">
             <h1 className="text-lg font-semibold tracking-tight">{t.appTitle}</h1>
             <p className="text-sm text-muted-foreground">{t.appSubtitle}</p>
           </div>
-          <div className="space-y-1">
+          <div className="shrink-0 space-y-1 px-4 md:px-5">
             {navItems.map((item) => {
               const Icon = item.icon;
               return (
@@ -1675,47 +1694,70 @@ function App() {
               );
             })}
           </div>
-          <Separator className="my-4" />
-          <div className="space-y-2">
-            {projects.map((project, index) => (
-              <motion.div
-                key={project.id}
-                layout
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.18, delay: index * 0.02 }}
-                className={`w-full rounded-lg border p-3 transition ${
-                  project.id === selectedProjectId ? "border-primary bg-primary/5" : "border-border hover:bg-accent/40"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <button
-                    type="button"
-                    className="min-w-0 flex-1 text-left"
-                    onClick={() => {
-                      selectProject(project.id);
-                      setTaskForm((previous) => ({ ...previous, projectId: project.id }));
-                      setNoteForm((previous) => ({ ...previous, projectId: project.id }));
-                    }}
-                  >
-                    <p className="truncate text-sm font-medium">{project.name}</p>
-                    <div className="mt-1 flex items-center gap-1.5">
-                      <span className={`${markerBase} ${projectStatusTone[project.status]}`}>{t.status[project.status]}</span>
-                      <span className="inline-flex h-2 w-2 rounded-full bg-muted-foreground/40" />
-                    </div>
-                  </button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    className="text-destructive hover:text-destructive"
-                    onClick={() => handleDeleteProject(project.id)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </motion.div>
-            ))}
+          <Separator className="mx-4 my-3 shrink-0 md:mx-5" />
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-2 md:px-5">
+            <div className="space-y-2">
+              {projects.map((project, index) => (
+                <motion.div
+                  key={project.id}
+                  layout
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.18, delay: index * 0.02 }}
+                  className={`w-full rounded-lg border p-3 transition ${
+                    project.id === selectedProjectId ? "border-primary bg-primary/5" : "border-border hover:bg-accent/40"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <button
+                      type="button"
+                      className="min-w-0 flex-1 text-left"
+                      onClick={() => {
+                        selectProject(project.id);
+                        setTaskForm((previous) => ({ ...previous, projectId: project.id }));
+                        setNoteForm((previous) => ({ ...previous, projectId: project.id }));
+                      }}
+                    >
+                      <p className="truncate text-sm font-medium">{project.name}</p>
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <span className={`${markerBase} ${projectStatusTone[project.status]}`}>{t.status[project.status]}</span>
+                        <span className="inline-flex h-2 w-2 rounded-full bg-muted-foreground/40" />
+                      </div>
+                    </button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => handleDeleteProject(project.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+          <div className="shrink-0 border-t bg-muted/30 p-3 md:p-4">
+            <div className="mb-2 text-xs font-medium text-muted-foreground">{t.sidebar.shortcuts}</div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[11px] text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-border/60 bg-gradient-to-b from-muted to-muted/80 px-1.5 font-mono text-[10px] font-medium shadow-[0_2px_0_0_rgb(0,0,0,0.1)] dark:shadow-[0_2px_0_0_rgb(255,255,255,0.05)]">Ctrl+N</kbd>
+                <span>{t.sidebar.shortcutsList.newProject}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-border/60 bg-gradient-to-b from-muted to-muted/80 px-1.5 font-mono text-[10px] font-medium shadow-[0_2px_0_0_rgb(0,0,0,0.1)] dark:shadow-[0_2px_0_0_rgb(255,255,255,0.05)]">Space</kbd>
+                <span>{t.sidebar.shortcutsList.toggleTimer}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-border/60 bg-gradient-to-b from-muted to-muted/80 px-1.5 font-mono text-[10px] font-medium shadow-[0_2px_0_0_rgb(0,0,0,0.1)] dark:shadow-[0_2px_0_0_rgb(255,255,255,0.05)]">R</kbd>
+                <span>{t.sidebar.shortcutsList.resetTimer}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-border/60 bg-gradient-to-b from-muted to-muted/80 px-1.5 font-mono text-[10px] font-medium shadow-[0_2px_0_0_rgb(0,0,0,0.1)] dark:shadow-[0_2px_0_0_rgb(255,255,255,0.05)]">1-6</kbd>
+                <span>{t.sidebar.shortcutsList.switchView}</span>
+              </div>
+            </div>
           </div>
         </aside>
 
@@ -1817,7 +1859,10 @@ function App() {
                             <SelectContent>
                               {[1, 2, 3, 4, 5].map((level) => (
                                 <SelectItem key={`mood-${level}`} value={`${level}`}>
-                                  {text.moodOptions[level - 1]}
+                                  <div className="flex items-center gap-2">
+                                    <span className={`h-2.5 w-2.5 rounded-full ${moodColors[level as 1 | 2 | 3 | 4 | 5]}`} />
+                                    {text.moodOptions[level - 1]}
+                                  </div>
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -1838,7 +1883,10 @@ function App() {
                             <SelectContent>
                               {[1, 2, 3, 4, 5].map((level) => (
                                 <SelectItem key={`energy-${level}`} value={`${level}`}>
-                                  {text.energyOptions[level - 1]}
+                                  <div className="flex items-center gap-2">
+                                    <span className={`h-2.5 w-2.5 rounded-full ${energyColors[level as 1 | 2 | 3 | 4 | 5]}`} />
+                                    {text.energyOptions[level - 1]}
+                                  </div>
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -1881,24 +1929,39 @@ function App() {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle>{text.personalInsights}</CardTitle>
+                    <CardTitle className="flex items-center gap-2">
+                      <Brain className="h-4 w-4" />
+                      {text.personalInsights}
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div className="rounded-md border p-2">
-                        <p className="text-xs text-muted-foreground">{text.checkinStreak}</p>
+                        <div className="flex items-center gap-1.5">
+                          <Flame className="h-3.5 w-3.5 text-orange-500" />
+                          <p className="text-xs text-muted-foreground">{text.checkinStreak}</p>
+                        </div>
                         <p className="text-lg font-semibold">{personalSummary.streak} {text.dayUnit}</p>
                       </div>
                       <div className="rounded-md border p-2">
-                        <p className="text-xs text-muted-foreground">{text.sevenDayFocus}</p>
+                        <div className="flex items-center gap-1.5">
+                          <Battery className="h-3.5 w-3.5 text-blue-500" />
+                          <p className="text-xs text-muted-foreground">{text.sevenDayFocus}</p>
+                        </div>
                         <p className="text-lg font-semibold">{personalSummary.focusHours}h</p>
                       </div>
                       <div className="rounded-md border p-2">
-                        <p className="text-xs text-muted-foreground">{text.sevenDayMood}</p>
+                        <div className="flex items-center gap-1.5">
+                          <Smile className="h-3.5 w-3.5 text-emerald-500" />
+                          <p className="text-xs text-muted-foreground">{text.sevenDayMood}</p>
+                        </div>
                         <p className="text-lg font-semibold">{personalSummary.moodAvg || "-"}</p>
                       </div>
                       <div className="rounded-md border p-2">
-                        <p className="text-xs text-muted-foreground">{text.sevenDayEnergy}</p>
+                        <div className="flex items-center gap-1.5">
+                          <Zap className="h-3.5 w-3.5 text-violet-500" />
+                          <p className="text-xs text-muted-foreground">{text.sevenDayEnergy}</p>
+                        </div>
                         <p className="text-lg font-semibold">{personalSummary.energyAvg || "-"}</p>
                       </div>
                     </div>
@@ -2908,6 +2971,30 @@ function App() {
                       <Trash2 className="h-4 w-4" />
                       {t.action.clearCache}
                     </Button>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <HeartPulse className="h-4 w-4" />
+                      {t.sidebar.about}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">{t.sidebar.version}</span>
+                      <span className="text-sm font-medium">0.1.0</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">{t.sidebar.developer}</span>
+                      <span className="text-sm font-medium">Plan Manager Team</span>
+                    </div>
+                    <Separator />
+                    <div className="text-center text-xs text-muted-foreground">
+                      <p className="font-medium">{t.appTitle}</p>
+                      <p className="mt-1">{t.appSubtitle}</p>
+                    </div>
                   </CardContent>
                 </Card>
               </div>

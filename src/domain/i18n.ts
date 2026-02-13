@@ -108,6 +108,18 @@ type I18nPack = {
       csv: string;
     };
   };
+  sidebar: {
+    shortcuts: string;
+    about: string;
+    version: string;
+    developer: string;
+    shortcutsList: {
+      newProject: string;
+      toggleTimer: string;
+      resetTimer: string;
+      switchView: string;
+    };
+  };
 };
 
 export const packs: Record<Locale, I18nPack> = {
@@ -241,6 +253,18 @@ export const packs: Record<Locale, I18nPack> = {
         csv: "导出 CSV",
       },
     },
+    sidebar: {
+      shortcuts: "快捷键",
+      about: "关于",
+      version: "版本",
+      developer: "开发者",
+      shortcutsList: {
+        newProject: "新建项目",
+        toggleTimer: "开始/暂停",
+        resetTimer: "重置计时",
+        switchView: "切换视图",
+      },
+    },
   },
   "en-US": {
     appTitle: "Personal Planning Hub",
@@ -370,6 +394,18 @@ export const packs: Record<Locale, I18nPack> = {
         title: "Export Data",
         json: "Export JSON",
         csv: "Export CSV",
+      },
+    },
+    sidebar: {
+      shortcuts: "Shortcuts",
+      about: "About",
+      version: "Version",
+      developer: "Developer",
+      shortcutsList: {
+        newProject: "New Project",
+        toggleTimer: "Start/Pause",
+        resetTimer: "Reset Timer",
+        switchView: "Switch View",
       },
     },
   },

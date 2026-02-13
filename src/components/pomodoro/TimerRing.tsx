@@ -8,6 +8,11 @@ type TimerRingProps = {
   totalSeconds: number;
   phase: TimerPhase;
   isRunning: boolean;
+  phaseLabels?: {
+    work: string;
+    shortBreak: string;
+    longBreak: string;
+  };
 };
 
 const RING_SIZE = 280;
@@ -15,7 +20,7 @@ const STROKE_WIDTH = 8;
 const RADIUS = (RING_SIZE - STROKE_WIDTH) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
-export function TimerRing({ remainingSeconds, totalSeconds, phase, isRunning }: TimerRingProps) {
+export function TimerRing({ remainingSeconds, totalSeconds, phase, isRunning, phaseLabels }: TimerRingProps) {
   const progress = calculateProgress(remainingSeconds, totalSeconds);
   const strokeDashoffset = CIRCUMFERENCE * (1 - progress);
   const colors = PHASE_COLORS[phase];
@@ -36,6 +41,13 @@ export function TimerRing({ remainingSeconds, totalSeconds, phase, isRunning }: 
         },
       }
     : {};
+
+  const getPhaseLabel = () => {
+    if (phaseLabels) {
+      return phaseLabels[phase];
+    }
+    return phase === "work" ? "专注中" : phase === "shortBreak" ? "休息中" : "长休息";
+  };
 
   return (
     <div className="relative flex items-center justify-center">
@@ -130,7 +142,7 @@ export function TimerRing({ remainingSeconds, totalSeconds, phase, isRunning }: 
                 style={{ backgroundColor: colors.primary }}
               />
               <span className="text-xs font-medium text-muted-foreground">
-                {phase === "work" ? "专注中" : phase === "shortBreak" ? "休息中" : "长休息"}
+                {getPhaseLabel()}
               </span>
             </motion.div>
           )}

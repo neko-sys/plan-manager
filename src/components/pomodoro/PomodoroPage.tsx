@@ -121,6 +121,7 @@ export function PomodoroPage() {
               totalSeconds={timer.totalSeconds}
               phase={timer.phase}
               isRunning={timer.isRunning}
+              phaseLabels={t.phases}
             />
           </div>
 
