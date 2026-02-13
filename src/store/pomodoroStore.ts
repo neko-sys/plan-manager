@@ -338,6 +338,25 @@ export const usePomodoroStore = create<PomodoroState>()(
           completedSessionsInCycle: state.timer.completedSessionsInCycle,
         },
       }),
+      merge: (persisted, current) => {
+        const persistedState = persisted as Partial<PomodoroState>;
+        const settings = persistedState.settings ?? current.settings;
+        const phase = persistedState.timer?.phase ?? current.timer.phase;
+        const duration = getPhaseDuration(phase, settings) * 60;
+        
+        return {
+          ...current,
+          settings,
+          sessions: persistedState.sessions ?? current.sessions,
+          timer: {
+            ...current.timer,
+            phase,
+            remainingSeconds: duration,
+            totalSeconds: duration,
+            completedSessionsInCycle: persistedState.timer?.completedSessionsInCycle ?? 0,
+          },
+        };
+      },
     },
   ),
 );
