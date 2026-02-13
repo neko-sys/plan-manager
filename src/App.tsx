@@ -16,6 +16,7 @@ import {
   HeartPulse,
   LayoutDashboard,
   ListTodo,
+  MessageSquare,
   Pencil,
   PieChart,
   PlayCircle,
@@ -51,6 +52,7 @@ import {
 import { projectProgress, timelineBounds, workspaceMetrics } from "@/application/metrics";
 import { selectCurrentProject, useWorkspaceStore } from "@/store/workspaceStore";
 import { PomodoroPage } from "@/components/pomodoro/PomodoroPage";
+import { ChatPage } from "@/components/chat/ChatPage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1664,6 +1666,7 @@ function App() {
   const navItems = [
     { key: "dashboard", label: t.views.dashboard, icon: LayoutDashboard },
     { key: "pomodoro", label: t.views.pomodoro, icon: Timer },
+    { key: "chat", label: t.views.chat, icon: MessageSquare },
     { key: "projects", label: t.views.projects, icon: FolderKanban },
     { key: "tasks", label: t.views.tasks, icon: ListTodo },
     { key: "notes", label: t.views.notes, icon: BookText },
@@ -1762,11 +1765,13 @@ function App() {
         </aside>
 
         <main
-          className={`panel-scroll min-h-0 p-4 md:p-6 ${
-            view === "tasks" || view === "pomodoro" ? "flex flex-col gap-4 overflow-hidden" : "space-y-4 overflow-y-auto"
+          className={`panel-scroll min-h-0 ${
+            view === "tasks" || view === "pomodoro" || view === "chat"
+              ? "flex flex-col gap-4 overflow-hidden p-0"
+              : "space-y-4 overflow-y-auto p-4 md:p-6"
           }`}
         >
-          {view !== "pomodoro" && (
+          {view !== "pomodoro" && view !== "chat" && (
           <header className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-xl font-semibold tracking-tight">{t.views[view]}</h2>
             {currentProject && view !== "settings" ? (
@@ -2763,8 +2768,19 @@ function App() {
             <PomodoroPage />
           ) : null}
 
+          {view === "chat" ? (
+            <ChatPage />
+          ) : null}
+
           {view === "settings" ? (
-            <motion.section key="settings" className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_1fr]" {...pageTransition}>
+            <motion.section
+              key="settings"
+              className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_1fr]"
+              initial={{ opacity: 0, x: 50, y: -30, scale: 0.95 }}
+              animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 50, y: -30, scale: 0.95 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+            >
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">

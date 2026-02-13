@@ -120,6 +120,21 @@ type I18nPack = {
       switchView: string;
     };
   };
+  chat: {
+    title: string;
+    subtitle: string;
+    conversations: string;
+    noConversations: string;
+    newConversation: string;
+    inputPlaceholder: string;
+    settings: string;
+    systemPrompt: string;
+    temperature: string;
+    maxTokens: string;
+    ollamaUnavailable: string;
+    modelNotFound: string;
+    stopGeneration: string;
+  };
 };
 
 export const packs: Record<Locale, I18nPack> = {
@@ -133,6 +148,7 @@ export const packs: Record<Locale, I18nPack> = {
       notes: "笔记",
       settings: "设置",
       pomodoro: "番茄钟",
+      chat: "AI 助手",
     },
     kpi: {
       projects: "项目数",
@@ -265,6 +281,21 @@ export const packs: Record<Locale, I18nPack> = {
         switchView: "切换视图",
       },
     },
+    chat: {
+      title: "AI 助手",
+      subtitle: "基于本地 Ollama 的智能对话",
+      conversations: "对话列表",
+      noConversations: "暂无对话",
+      newConversation: "新对话",
+      inputPlaceholder: "输入消息... (Shift+Enter 换行)",
+      settings: "对话设置",
+      systemPrompt: "系统提示词",
+      temperature: "温度",
+      maxTokens: "最大令牌数",
+      ollamaUnavailable: "无法连接 Ollama，请确认已启动服务",
+      modelNotFound: "未找到本地模型",
+      stopGeneration: "停止生成",
+    },
   },
   "en-US": {
     appTitle: "Personal Planning Hub",
@@ -276,6 +307,7 @@ export const packs: Record<Locale, I18nPack> = {
       notes: "Notes",
       settings: "Settings",
       pomodoro: "Pomodoro",
+      chat: "AI Assistant",
     },
     kpi: {
       projects: "Projects",
@@ -407,6 +439,21 @@ export const packs: Record<Locale, I18nPack> = {
         resetTimer: "Reset Timer",
         switchView: "Switch View",
       },
+    },
+    chat: {
+      title: "AI Assistant",
+      subtitle: "Local Ollama-powered chat",
+      conversations: "Conversations",
+      noConversations: "No conversations yet",
+      newConversation: "New Chat",
+      inputPlaceholder: "Type a message... (Shift+Enter for new line)",
+      settings: "Chat Settings",
+      systemPrompt: "System Prompt",
+      temperature: "Temperature",
+      maxTokens: "Max Tokens",
+      ollamaUnavailable: "Cannot connect to Ollama. Please start the service",
+      modelNotFound: "No local model found",
+      stopGeneration: "Stop Generation",
     },
   },
 };
