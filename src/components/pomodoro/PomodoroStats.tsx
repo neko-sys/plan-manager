@@ -77,12 +77,12 @@ export function PomodoroStats({ labels }: PomodoroStatsProps) {
   return (
     <Card className="border-muted/20 bg-card/50 backdrop-blur-sm">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <BarChart3 className="h-4 w-4" />
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="flex shrink-0 items-center gap-2 text-base whitespace-nowrap">
+            <BarChart3 className="h-4 w-4 shrink-0" />
             {labels.title}
           </CardTitle>
-          <div className="flex rounded-full bg-muted/30 p-0.5">
+          <div className="flex shrink-0 rounded-full bg-muted/30 p-0.5">
             {viewButtons.map(({ key, label }) => (
               <button
                 key={key}
@@ -101,16 +101,16 @@ export function PomodoroStats({ labels }: PomodoroStatsProps) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-2">
           <motion.div
             key={`completed-${view}`}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col items-center rounded-xl bg-gradient-to-br from-rose-500/10 to-orange-500/10 p-3"
+            className="flex flex-col items-center justify-center rounded-xl bg-gradient-to-br from-rose-500/10 to-orange-500/10 p-2.5"
           >
             <TrendingUp className="h-4 w-4 text-rose-500" />
-            <span className="mt-1 text-xl font-semibold">{stats.completed}</span>
-            <span className="text-xs text-muted-foreground">{labels.pomodoros}</span>
+            <span className="mt-1 text-lg font-semibold">{stats.completed}</span>
+            <span className="whitespace-nowrap text-[11px] text-muted-foreground">{labels.pomodoros}</span>
           </motion.div>
 
           <motion.div
@@ -118,11 +118,11 @@ export function PomodoroStats({ labels }: PomodoroStatsProps) {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.05 }}
-            className="flex flex-col items-center rounded-xl bg-gradient-to-br from-emerald-500/10 to-teal-500/10 p-3"
+            className="flex flex-col items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500/10 to-teal-500/10 p-2.5"
           >
             <Clock className="h-4 w-4 text-emerald-500" />
-            <span className="mt-1 text-xl font-semibold">{stats.focusMinutes}</span>
-            <span className="text-xs text-muted-foreground">{labels.minutes}</span>
+            <span className="mt-1 text-lg font-semibold">{stats.focusMinutes}</span>
+            <span className="whitespace-nowrap text-[11px] text-muted-foreground">{labels.minutes}</span>
           </motion.div>
 
           <motion.div
@@ -130,11 +130,11 @@ export function PomodoroStats({ labels }: PomodoroStatsProps) {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="flex flex-col items-center rounded-xl bg-gradient-to-br from-sky-500/10 to-blue-500/10 p-3"
+            className="flex flex-col items-center justify-center rounded-xl bg-gradient-to-br from-sky-500/10 to-blue-500/10 p-2.5"
           >
             <Calendar className="h-4 w-4 text-sky-500" />
-            <span className="mt-1 text-xl font-semibold">{stats.breakMinutes}</span>
-            <span className="text-xs text-muted-foreground">{labels.minutes}</span>
+            <span className="mt-1 text-lg font-semibold">{stats.breakMinutes}</span>
+            <span className="whitespace-nowrap text-[11px] text-muted-foreground">{labels.minutes}</span>
           </motion.div>
         </div>
 

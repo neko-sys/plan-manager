@@ -48,23 +48,6 @@ export function PhaseSelector({ currentPhase, onPhaseChange, disabled }: PhaseSe
                 : undefined
             }
           >
-            <Icon className="h-4 w-4" />
-            <span>{config.label}</span>
-            {isActive && (
-              <motion.div
-                layoutId="phase-indicator"
-                className="absolute inset-0 rounded-full"
-                style={{
-                  background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary} 100%)`,
-                }}
-                initial={false}
-                transition={{
-                  type: "spring",
-                  stiffness: 500,
-                  damping: 30,
-                }}
-              />
-            )}
             <span className="relative z-10 flex items-center gap-2">
               <Icon className="h-4 w-4" />
               <span>{config.label}</span>
