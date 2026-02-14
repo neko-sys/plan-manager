@@ -19,7 +19,6 @@ import {
   MessageSquare,
   Pencil,
   PieChart,
-  PlayCircle,
   Plus,
   RotateCcw,
   Settings2,
@@ -31,7 +30,6 @@ import {
   Zap,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { Steps } from "antd";
 import { LogicalSize } from "@tauri-apps/api/dpi";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { packs } from "@/domain/i18n";
@@ -50,6 +48,7 @@ import {
 } from "@/domain/models";
 import { projectProgress, timelineBounds, workspaceMetrics } from "@/features/workspace/model/metrics";
 import { selectCurrentProject, useWorkspaceStore } from "@/store/workspaceStore";
+import { usePomodoroStore } from "@/store/pomodoroStore";
 import { FeaturePomodoroPage as PomodoroPage } from "@/features/pomodoro/pages/PomodoroPage";
 import { FeatureChatPage as ChatPage } from "@/features/chat/pages/ChatPage";
 import { Badge } from "@/components/ui/badge";
@@ -226,6 +225,25 @@ const TASK_STATUS_ORDER: Record<TaskStatus, number> = {
   doing: 1,
   done: 2,
 };
+const SHORTCUT_VIEWS: Array<"dashboard" | "pomodoro" | "chat" | "projects" | "tasks" | "notes"> = [
+  "dashboard",
+  "pomodoro",
+  "chat",
+  "projects",
+  "tasks",
+  "notes",
+];
+
+const isTypingTarget = (target: EventTarget | null): boolean => {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  const tagName = target.tagName.toLowerCase();
+  if (tagName === "input" || tagName === "textarea" || tagName === "select") {
+    return true;
+  }
+  return Boolean(target.isContentEditable || target.closest("[contenteditable=\"true\"]"));
+};
 
 const calculateCheckinStreak = (dates: string[]): number => {
   if (dates.length === 0) {
@@ -397,6 +415,11 @@ export function LegacyApp() {
   } = useWorkspaceStore();
 
   const currentProject = useWorkspaceStore(selectCurrentProject);
+  const timer = usePomodoroStore((state) => state.timer);
+  const startTimer = usePomodoroStore((state) => state.startTimer);
+  const pauseTimer = usePomodoroStore((state) => state.pauseTimer);
+  const resumeTimer = usePomodoroStore((state) => state.resumeTimer);
+  const resetTimer = usePomodoroStore((state) => state.resetTimer);
   const t = packs[locale];
   const text = {
     cancel: locale === "zh-CN" ? "取消" : "Cancel",
@@ -891,6 +914,63 @@ export function LegacyApp() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [aiProjectSplitDialog, aiSplitDialog, deleteDialog, projectDialogOpen, taskDialogOpen, worklogDialog]);
+
+  useEffect(() => {
+    const onShortcutKeyDown = (event: KeyboardEvent) => {
+      const typing = isTypingTarget(event.target);
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        setView("projects");
+        setEditingProjectId(null);
+        setProjectError("");
+        setProjectForm({
+          name: "",
+          description: "",
+          startDate: "2026-02-12",
+          endDate: "2026-02-25",
+        });
+        setProjectDialogOpen(true);
+        return;
+      }
+
+      if (typing) {
+        return;
+      }
+
+      if (event.key >= "1" && event.key <= "6") {
+        const index = Number(event.key) - 1;
+        const nextView = SHORTCUT_VIEWS[index];
+        if (nextView) {
+          event.preventDefault();
+          setView(nextView);
+        }
+        return;
+      }
+
+      if (event.code === "Space" || event.key === " ") {
+        event.preventDefault();
+        if (timer.isRunning) {
+          pauseTimer();
+          return;
+        }
+        if (timer.isPaused) {
+          resumeTimer();
+          return;
+        }
+        startTimer();
+        return;
+      }
+
+      if (!event.ctrlKey && !event.metaKey && (event.key === "r" || event.key === "R")) {
+        event.preventDefault();
+        resetTimer();
+      }
+    };
+
+    window.addEventListener("keydown", onShortcutKeyDown);
+    return () => window.removeEventListener("keydown", onShortcutKeyDown);
+  }, [pauseTimer, resetTimer, resumeTimer, setView, startTimer, timer.isPaused, timer.isRunning]);
 
   useEffect(() => {
     if (!todayCheckin) {
@@ -1456,26 +1536,6 @@ export function LegacyApp() {
       spentHours: defaultSpentHours,
     });
   };
-  const getNextActionForTask = (task: Task) => {
-    if (task.status === "todo") {
-      return { label: text.startExecution, status: "doing" as TaskStatus, icon: PlayCircle };
-    }
-    if (task.status === "doing") {
-      return { label: text.completeExecution, status: "done" as TaskStatus, icon: CheckCircle2 };
-    }
-    return { label: text.reopenExecution, status: "doing" as TaskStatus, icon: RotateCcw };
-  };
-
-  const getBackActionForTask = (task: Task) => {
-    if (task.status === "doing") {
-      return { label: text.backToTodo, status: "todo" as TaskStatus };
-    }
-    if (task.status === "done") {
-      return { label: text.backToDoing, status: "doing" as TaskStatus };
-    }
-    return null;
-  };
-
   const handleEditProject = (projectId: string) => {
     const target = projects.find((project) => project.id === projectId);
     if (!target) {
@@ -1748,8 +1808,10 @@ export function LegacyApp() {
 
         <main
           className={`panel-scroll min-h-0 ${
-            view === "tasks" || view === "pomodoro" || view === "chat"
+            view === "pomodoro" || view === "chat"
               ? "flex flex-col gap-4 overflow-hidden p-0"
+              : view === "tasks"
+                ? "flex flex-col gap-4 overflow-hidden p-4 md:p-6"
               : "space-y-4 overflow-y-auto p-4 md:p-6"
           }`}
         >
@@ -2343,8 +2405,8 @@ export function LegacyApp() {
           ) : null}
 
           {view === "tasks" ? (
-            <motion.section key="tasks" className="grid h-full min-h-0 grid-cols-1 gap-4 overflow-hidden xl:grid-cols-[1.3fr_1fr]" {...pageTransition}>
-              <div className="min-h-0 space-y-4 overflow-hidden">
+            <motion.section key="tasks" className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden xl:grid-cols-[1.3fr_1fr]" {...pageTransition}>
+              <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
                 <Card>
                   <CardHeader className="space-y-3">
                     <CardTitle className="flex items-center gap-2">
@@ -2508,7 +2570,7 @@ export function LegacyApp() {
                 <CardHeader>
                   <CardTitle>{t.views.tasks}</CardTitle>
                 </CardHeader>
-                <CardContent className="modern-scroll min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+                <CardContent className="modern-scroll min-h-0 flex-1 space-y-3 overflow-y-auto">
                   {taskHierarchy.map(({ task, depth, isLast, ancestorHasSibling }, index) => {
                     const visualDepth = Math.min(depth, 6);
                     const indentUnit = 18;
@@ -2609,56 +2671,21 @@ export function LegacyApp() {
                           {task.spentHours}/{task.estimateHours} {t.units.hours}
                         </span>
                       </div>
-                      {(() => {
-                        const nextAction = getNextActionForTask(task);
-                        const backAction = getBackActionForTask(task);
-                        const NextIcon = nextAction.icon;
-                        const flow = [
-                          { key: "todo", label: t.status.todo },
-                          { key: "doing", label: t.status.doing },
-                          { key: "done", label: t.status.done },
-                        ] as const;
-                        const order: TaskStatus[] = ["todo", "doing", "done"];
-                        const activeIndex = order.indexOf(task.status);
-                        return (
-                          <div className="mt-2 space-y-2 rounded-lg border border-border/70 bg-gradient-to-br from-background to-muted/25 p-2.5">
-                            <div className="text-xs text-muted-foreground">{text.taskFlow}</div>
-                            <div className="rounded-lg border border-border/60 bg-background/80 px-3 py-2">
-                              <Steps
-                                className={`task-flow-steps task-flow-status-${task.status}`}
-                                current={activeIndex}
-                                size="small"
-                                items={flow.map((step, index) => ({
-                                  title: <span className="text-xs">{step.label}</span>,
-                                  status: index < activeIndex ? "finish" : index === activeIndex ? "process" : "wait",
-                                }))}
-                              />
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Button
-                                type="button"
-                                size="xs"
-                                className="h-7 gap-1"
-                                onClick={() => handleTaskStatusChange(task, nextAction.status)}
-                              >
-                                <NextIcon className="h-3.5 w-3.5" />
-                                {text.nextStep}: {nextAction.label}
-                              </Button>
-                              {backAction ? (
-                                <Button
-                                  type="button"
-                                  size="xs"
-                                  variant="outline"
-                                  className="h-7 gap-1"
-                                  onClick={() => handleTaskStatusChange(task, backAction.status)}
-                                >
-                                  {text.backStep}: {backAction.label}
-                                </Button>
-                              ) : null}
-                            </div>
-                          </div>
-                        );
-                      })()}
+                      <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-muted/20 p-2">
+                        {TASK_STATUSES.map((status) => (
+                          <Button
+                            key={status}
+                            type="button"
+                            size="xs"
+                            variant={task.status === status ? "default" : "outline"}
+                            className="h-7"
+                            onClick={() => handleTaskStatusChange(task, status)}
+                            disabled={task.status === status}
+                          >
+                            {t.status[status]}
+                          </Button>
+                        ))}
+                      </div>
                       </div>
                     </motion.div>
                     );
