@@ -1,10 +1,10 @@
 import { useState, useCallback, useEffect } from "react";
 import { motion } from "motion/react";
-import { invoke } from "@tauri-apps/api/core";
 import { MessageSquare, Plus, Settings, Trash2 } from "lucide-react";
 import { useChatStore } from "@/store/chatStore";
 import { useWorkspaceStore } from "@/store/workspaceStore";
 import { packs } from "@/domain/i18n";
+import { ollamaClient } from "@/services/ollama/ollamaClient";
 import { ChatMessageList } from "./ChatMessageList";
 import { ChatInput } from "./ChatInput";
 import { ChatModelSelector } from "./ChatModelSelector";
@@ -63,7 +63,7 @@ export function ChatPage() {
     setModelsLoading(true);
     setModelsError("");
     try {
-      const models = await invoke<string[]>("list_ollama_models");
+      const models = await ollamaClient.listModels();
       setOllamaModels(models);
       if (models.length > 0 && !settings.defaultModel) {
         updateSettings({ defaultModel: models[0] });

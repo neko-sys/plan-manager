@@ -4,7 +4,7 @@ import { Download, FileJson, FileSpreadsheet } from "lucide-react";
 import { usePomodoroStore } from "@/store/pomodoroStore";
 import { useWorkspaceStore } from "@/store/workspaceStore";
 import { packs } from "@/domain/i18n";
-import { notifyPhaseComplete } from "@/application/notifications";
+import { notifyPhaseComplete } from "@/services/notifications/notificationService";
 import { exportToJson, exportToCsv } from "@/application/export";
 import { TimerRing } from "@/components/pomodoro/TimerRing";
 import { TimerControls } from "@/components/pomodoro/TimerControls";
