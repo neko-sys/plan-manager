@@ -1,10 +1,16 @@
-import { motion } from "motion/react";
 import { Circle, Link2, Unlink } from "lucide-react";
-import { useWorkspaceStore } from "@/store/workspaceStore";
-import { usePomodoroStore } from "@/store/pomodoroStore";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { usePomodoroStore } from "@/store/pomodoroStore";
+import { useWorkspaceStore } from "@/store/workspaceStore";
 
 type TaskPickerProps = {
   labels: {
@@ -95,11 +101,7 @@ export function TaskPicker({ labels }: TaskPickerProps) {
                   {projectName}
                 </div>
                 {projectTasks.map((task) => (
-                  <SelectItem
-                    key={task.id}
-                    value={task.id}
-                    className="cursor-pointer"
-                  >
+                  <SelectItem key={task.id} value={task.id} className="cursor-pointer">
                     <div className="flex items-center gap-2">
                       <div
                         className={cn(

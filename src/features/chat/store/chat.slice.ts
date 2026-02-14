@@ -1,7 +1,18 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { ChatConversation, ChatMessage, ChatSettings, OllamaStreamResponse } from "@/domain/chat";
-import { createConversationId, createMessageId, DEFAULT_CHAT_SETTINGS, generateTitle, nowIso } from "@/domain/chat";
+import type {
+  ChatConversation,
+  ChatMessage,
+  ChatSettings,
+  OllamaStreamResponse,
+} from "@/domain/chat";
+import {
+  createConversationId,
+  createMessageId,
+  DEFAULT_CHAT_SETTINGS,
+  generateTitle,
+  nowIso,
+} from "@/domain/chat";
 import { ollamaClient } from "@/services/ollama/ollamaClient";
 
 type ChatState = {
@@ -10,22 +21,31 @@ type ChatState = {
   settings: ChatSettings;
   isLoading: boolean;
   abortController: AbortController | null;
-  
+
   createConversation: (model: string) => string;
   deleteConversation: (id: string) => void;
   setActiveConversation: (id: string | null) => void;
   updateConversationTitle: (id: string, title: string) => void;
-  
-  addMessage: (conversationId: string, role: "user" | "assistant" | "system", content: string) => ChatMessage;
-  updateMessage: (conversationId: string, messageId: string, content: string, isStreaming?: boolean) => void;
+
+  addMessage: (
+    conversationId: string,
+    role: "user" | "assistant" | "system",
+    content: string,
+  ) => ChatMessage;
+  updateMessage: (
+    conversationId: string,
+    messageId: string,
+    content: string,
+    isStreaming?: boolean,
+  ) => void;
   deleteMessage: (conversationId: string, messageId: string) => void;
   clearMessages: (conversationId: string) => void;
-  
+
   sendMessage: (content: string) => Promise<void>;
   stopGeneration: () => void;
-  
+
   updateSettings: (settings: Partial<ChatSettings>) => void;
-  
+
   getActiveConversation: () => ChatConversation | null;
 };
 
@@ -58,9 +78,10 @@ export const useChatStore = create<ChatState>()(
       deleteConversation: (id: string) => {
         set((state) => {
           const newConversations = state.conversations.filter((c) => c.id !== id);
-          const newActiveId = state.activeConversationId === id
-            ? newConversations[0]?.id ?? null
-            : state.activeConversationId;
+          const newActiveId =
+            state.activeConversationId === id
+              ? (newConversations[0]?.id ?? null)
+              : state.activeConversationId;
           return {
             conversations: newConversations,
             activeConversationId: newActiveId,
@@ -75,12 +96,16 @@ export const useChatStore = create<ChatState>()(
       updateConversationTitle: (id: string, title: string) => {
         set((state) => ({
           conversations: state.conversations.map((c) =>
-            c.id === id ? { ...c, title, updatedAt: nowIso() } : c
+            c.id === id ? { ...c, title, updatedAt: nowIso() } : c,
           ),
         }));
       },
 
-      addMessage: (conversationId: string, role: "user" | "assistant" | "system", content: string) => {
+      addMessage: (
+        conversationId: string,
+        role: "user" | "assistant" | "system",
+        content: string,
+      ) => {
         const message: ChatMessage = {
           id: createMessageId(),
           role,
@@ -94,26 +119,32 @@ export const useChatStore = create<ChatState>()(
                   ...c,
                   messages: [...c.messages, message],
                   updatedAt: nowIso(),
-                  title: c.messages.length === 0 && role === "user" ? generateTitle(content) : c.title,
+                  title:
+                    c.messages.length === 0 && role === "user" ? generateTitle(content) : c.title,
                 }
-              : c
+              : c,
           ),
         }));
         return message;
       },
 
-      updateMessage: (conversationId: string, messageId: string, content: string, isStreaming?: boolean) => {
+      updateMessage: (
+        conversationId: string,
+        messageId: string,
+        content: string,
+        isStreaming?: boolean,
+      ) => {
         set((state) => ({
           conversations: state.conversations.map((c) =>
             c.id === conversationId
               ? {
                   ...c,
                   messages: c.messages.map((m) =>
-                    m.id === messageId ? { ...m, content, isStreaming } : m
+                    m.id === messageId ? { ...m, content, isStreaming } : m,
                   ),
                   updatedAt: nowIso(),
                 }
-              : c
+              : c,
           ),
         }));
       },
@@ -127,7 +158,7 @@ export const useChatStore = create<ChatState>()(
                   messages: c.messages.filter((m) => m.id !== messageId),
                   updatedAt: nowIso(),
                 }
-              : c
+              : c,
           ),
         }));
       },
@@ -135,9 +166,7 @@ export const useChatStore = create<ChatState>()(
       clearMessages: (conversationId: string) => {
         set((state) => ({
           conversations: state.conversations.map((c) =>
-            c.id === conversationId
-              ? { ...c, messages: [], updatedAt: nowIso() }
-              : c
+            c.id === conversationId ? { ...c, messages: [], updatedAt: nowIso() } : c,
           ),
         }));
       },
@@ -145,7 +174,9 @@ export const useChatStore = create<ChatState>()(
       sendMessage: async (content: string) => {
         const state = get();
         let conversationId = state.activeConversationId;
-        const model = state.conversations.find((c) => c.id === conversationId)?.model ?? state.settings.defaultModel;
+        const model =
+          state.conversations.find((c) => c.id === conversationId)?.model ??
+          state.settings.defaultModel;
 
         if (!conversationId) {
           conversationId = state.createConversation(model);
@@ -162,13 +193,15 @@ export const useChatStore = create<ChatState>()(
 
         const conversation = get().conversations.find((c) => c.id === conversationId);
         const messages = conversation?.messages.filter((m) => m.role !== "system") ?? [];
-        
+
         const contextPrompt = messages
           .slice(0, -1)
           .map((m) => `${m.role === "user" ? "用户" : "助手"}: ${m.content}`)
           .join("\n\n");
-        
-        const fullPrompt = contextPrompt ? `${contextPrompt}\n\n用户: ${content}\n\n助手:` : content;
+
+        const fullPrompt = contextPrompt
+          ? `${contextPrompt}\n\n用户: ${content}\n\n助手:`
+          : content;
 
         try {
           const request = {
@@ -188,7 +221,12 @@ export const useChatStore = create<ChatState>()(
               request,
               (data: OllamaStreamResponse) => {
                 accumulatedContent += data.response;
-                state.updateMessage(conversationId!, assistantMessage.id, accumulatedContent, !data.done);
+                state.updateMessage(
+                  conversationId!,
+                  assistantMessage.id,
+                  accumulatedContent,
+                  !data.done,
+                );
               },
               controller.signal,
             );
@@ -202,7 +240,12 @@ export const useChatStore = create<ChatState>()(
             state.updateMessage(conversationId!, assistantMessage.id, "已停止生成", false);
           } else {
             const errorMessage = error instanceof Error ? error.message : "发生未知错误";
-            state.updateMessage(conversationId!, assistantMessage.id, `错误: ${errorMessage}`, false);
+            state.updateMessage(
+              conversationId!,
+              assistantMessage.id,
+              `错误: ${errorMessage}`,
+              false,
+            );
           }
         } finally {
           set({ isLoading: false, abortController: null });
@@ -233,12 +276,11 @@ export const useChatStore = create<ChatState>()(
         conversations: state.conversations,
         settings: state.settings,
       }),
-    }
-  )
+    },
+  ),
 );
 
 export const selectConversations = (state: ChatState) => state.conversations;
 export const selectActiveConversationId = (state: ChatState) => state.activeConversationId;
 export const selectSettings = (state: ChatState) => state.settings;
 export const selectIsLoading = (state: ChatState) => state.isLoading;
-

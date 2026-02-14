@@ -13,7 +13,10 @@ let audioContext: AudioContext | null = null;
 
 const getAudioContext = (): AudioContext => {
   if (!audioContext) {
-    audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    audioContext = new (
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+    )();
   }
   return audioContext;
 };
@@ -106,7 +109,10 @@ export const showDesktopNotification = async (
   }
 };
 
-export const triggerVibration = (settings: PomodoroSettings, pattern: number | number[] = [200, 100, 200]): void => {
+export const triggerVibration = (
+  settings: PomodoroSettings,
+  pattern: number | number[] = [200, 100, 200],
+): void => {
   if (!settings.vibrationEnabled) return;
 
   if ("vibrate" in navigator) {

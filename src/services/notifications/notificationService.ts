@@ -1,11 +1,11 @@
 export {
+  notifyPhaseComplete,
+  notifyTimerStart,
   playNotificationSound,
   playTick,
   requestNotificationPermission,
   showDesktopNotification,
   triggerVibration,
-  notifyPhaseComplete,
-  notifyTimerStart,
 } from "@/application/notifications";
 
 import { notifyPhaseComplete as notifyPhaseCompleteImpl } from "@/application/notifications";

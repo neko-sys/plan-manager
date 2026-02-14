@@ -1,7 +1,13 @@
 import { RefreshCw } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type ChatModelSelectorProps = {
   models: string[];
@@ -32,7 +38,7 @@ export function ChatModelSelector({
       >
         <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
       </Button>
-      
+
       {models.length > 0 ? (
         <Select value={selectedModel} onValueChange={onModelChange}>
           <SelectTrigger className="h-8 w-[180px]">
@@ -54,10 +60,8 @@ export function ChatModelSelector({
           className="h-8 w-[180px]"
         />
       )}
-      
-      {error && (
-        <span className="text-xs text-destructive">{error}</span>
-      )}
+
+      {error && <span className="text-xs text-destructive">{error}</span>}
     </div>
   );
 }

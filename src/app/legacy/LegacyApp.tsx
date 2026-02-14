@@ -1,4 +1,5 @@
-import { type FormEvent, type MouseEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { LogicalSize } from "@tauri-apps/api/dpi";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   BarChart3,
   Battery,
@@ -7,12 +8,13 @@ import {
   Brain,
   CalendarDays,
   Check,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  CheckCircle2,
   Copy,
   Flame,
   FolderKanban,
+  Github,
   HeartPulse,
   LayoutDashboard,
   ListTodo,
@@ -30,37 +32,54 @@ import {
   Zap,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { LogicalSize } from "@tauri-apps/api/dpi";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { packs } from "@/domain/i18n";
 import {
-  dailyCheckinInputSchema,
-  noteInputSchema,
-  projectInputSchema,
-  taskInputSchema,
-  PROJECT_STATUSES,
-  TASK_STATUSES,
-  type ProjectStatus,
-  type Task,
-  type TaskPriority,
-  type TaskStatus,
-  type WindowSizePreset,
-} from "@/domain/models";
-import { projectProgress, timelineBounds, workspaceMetrics } from "@/features/workspace/model/metrics";
-import { selectCurrentProject, useWorkspaceStore } from "@/store/workspaceStore";
-import { usePomodoroStore } from "@/store/pomodoroStore";
-import { FeaturePomodoroPage as PomodoroPage } from "@/features/pomodoro/pages/PomodoroPage";
-import { FeatureChatPage as ChatPage } from "@/features/chat/pages/ChatPage";
+  type FormEvent,
+  type MouseEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { packs } from "@/domain/i18n";
+import {
+  dailyCheckinInputSchema,
+  noteInputSchema,
+  PROJECT_STATUSES,
+  type ProjectStatus,
+  projectInputSchema,
+  TASK_STATUSES,
+  type Task,
+  type TaskPriority,
+  type TaskStatus,
+  taskInputSchema,
+  type WindowSizePreset,
+} from "@/domain/models";
+import { FeatureChatPage as ChatPage } from "@/features/chat/pages/ChatPage";
+import { FeaturePomodoroPage as PomodoroPage } from "@/features/pomodoro/pages/PomodoroPage";
+import {
+  projectProgress,
+  timelineBounds,
+  workspaceMetrics,
+} from "@/features/workspace/model/metrics";
 import { ollamaClient } from "@/services/ollama/ollamaClient";
+import { usePomodoroStore } from "@/store/pomodoroStore";
+import { selectCurrentProject, useWorkspaceStore } from "@/store/workspaceStore";
 
 type TaskFormState = {
   projectId: string;
@@ -83,6 +102,7 @@ const TASK_CREATE_DEFAULTS = {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_HOURS_PER_DAY = 8;
+const GITHUB_REPO_URL = "https://github.com/neko-sys/plan-manager";
 
 const parseDateLike = (value: string | Date): Date => {
   if (value instanceof Date) {
@@ -90,7 +110,8 @@ const parseDateLike = (value: string | Date): Date => {
   }
   return value.includes("T") ? new Date(value) : new Date(`${value}T00:00:00`);
 };
-const isDateOnlyValue = (value: string | Date): boolean => typeof value === "string" && !value.includes("T");
+const isDateOnlyValue = (value: string | Date): boolean =>
+  typeof value === "string" && !value.includes("T");
 
 const formatDate = (value: string | Date, locale: string) => {
   const date = parseDateLike(value);
@@ -116,7 +137,8 @@ const dateToKey = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 const startOfMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1);
-const addMonths = (date: Date, offset: number) => new Date(date.getFullYear(), date.getMonth() + offset, 1);
+const addMonths = (date: Date, offset: number) =>
+  new Date(date.getFullYear(), date.getMonth() + offset, 1);
 const normalizeDateRange = (start: string, end: string): [string, string] =>
   start <= end ? [start, end] : [end, start];
 const calcRangeHours = (start: string, end: string): number => {
@@ -147,7 +169,8 @@ const getMonthGrid = (cursor: Date) => {
   });
 };
 
-const markerBase = "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium";
+const markerBase =
+  "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium";
 const projectStatusTone: Record<ProjectStatus, string> = {
   planning: "border-sky-500/40 bg-sky-500/15 text-sky-700 dark:text-sky-300",
   active: "border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-300",
@@ -203,7 +226,10 @@ const pageTransition = {
   exit: { opacity: 0, y: -10 },
   transition: { duration: 0.2, ease: "easeOut" },
 } as const;
-const WINDOW_PRESETS: Record<Exclude<WindowSizePreset, "custom">, { width: number; height: number }> = {
+const WINDOW_PRESETS: Record<
+  Exclude<WindowSizePreset, "custom">,
+  { width: number; height: number }
+> = {
   small: { width: 1024, height: 720 },
   medium: { width: 1280, height: 800 },
   large: { width: 1440, height: 900 },
@@ -242,7 +268,7 @@ const isTypingTarget = (target: EventTarget | null): boolean => {
   if (tagName === "input" || tagName === "textarea" || tagName === "select") {
     return true;
   }
-  return Boolean(target.isContentEditable || target.closest("[contenteditable=\"true\"]"));
+  return Boolean(target.isContentEditable || target.closest('[contenteditable="true"]'));
 };
 
 const calculateCheckinStreak = (dates: string[]): number => {
@@ -276,7 +302,8 @@ type AiProjectTaskDraft = {
   children?: AiProjectTaskDraft[];
 };
 
-const isDateKey = (value: unknown): value is string => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+const isDateKey = (value: unknown): value is string =>
+  typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
 const resolveTaskRange = (
   defaultStart: string,
   defaultDue: string,
@@ -307,9 +334,13 @@ const parseAiSubtasks = (raw: string): AiSubtaskDraft[] => {
       }
       const priorityRaw = `${task.priority ?? ""}`.toLowerCase();
       const priority: TaskPriority | undefined =
-        priorityRaw === "low" || priorityRaw === "medium" || priorityRaw === "high" ? priorityRaw : undefined;
+        priorityRaw === "low" || priorityRaw === "medium" || priorityRaw === "high"
+          ? priorityRaw
+          : undefined;
       const estimateCandidate = Number(task.estimateHours);
-      const estimateHours = Number.isFinite(estimateCandidate) ? Math.max(1, Math.round(estimateCandidate)) : undefined;
+      const estimateHours = Number.isFinite(estimateCandidate)
+        ? Math.max(1, Math.round(estimateCandidate))
+        : undefined;
       const startDate = isDateKey(task.startDate) ? task.startDate : undefined;
       const dueDate = isDateKey(task.dueDate) ? task.dueDate : undefined;
       tasks.push({ title, priority, estimateHours, startDate, dueDate });
@@ -345,14 +376,23 @@ const parseAiProjectTasks = (raw: string): AiProjectTaskDraft[] => {
     }
     const priorityRaw = `${task.priority ?? ""}`.toLowerCase();
     const priority: TaskPriority | undefined =
-      priorityRaw === "low" || priorityRaw === "medium" || priorityRaw === "high" ? priorityRaw : undefined;
+      priorityRaw === "low" || priorityRaw === "medium" || priorityRaw === "high"
+        ? priorityRaw
+        : undefined;
     const estimateCandidate = Number(task.estimateHours);
-    const estimateHours = Number.isFinite(estimateCandidate) ? Math.max(1, Math.round(estimateCandidate)) : undefined;
+    const estimateHours = Number.isFinite(estimateCandidate)
+      ? Math.max(1, Math.round(estimateCandidate))
+      : undefined;
     const startDate = isDateKey(task.startDate) ? task.startDate : undefined;
     const dueDate = isDateKey(task.dueDate) ? task.dueDate : undefined;
-    const childrenRaw =
-      Array.isArray(task.children) ? task.children : Array.isArray(task.subtasks) ? task.subtasks : [];
-    const children = childrenRaw.map((child) => normalizeNode(child)).filter((child): child is AiProjectTaskDraft => child !== null);
+    const childrenRaw = Array.isArray(task.children)
+      ? task.children
+      : Array.isArray(task.subtasks)
+        ? task.subtasks
+        : [];
+    const children = childrenRaw
+      .map((child) => normalizeNode(child))
+      .filter((child): child is AiProjectTaskDraft => child !== null);
     return {
       title,
       priority,
@@ -367,7 +407,9 @@ const parseAiProjectTasks = (raw: string): AiProjectTaskDraft[] => {
     if (!Array.isArray(input)) {
       return [];
     }
-    return input.map((item) => normalizeNode(item)).filter((item): item is AiProjectTaskDraft => item !== null);
+    return input
+      .map((item) => normalizeNode(item))
+      .filter((item): item is AiProjectTaskDraft => item !== null);
   };
 
   try {
@@ -427,7 +469,10 @@ export function LegacyApp() {
     priorityChart: locale === "zh-CN" ? "优先级占比" : "Priority Mix",
     workloadChart: locale === "zh-CN" ? "项目工时对比" : "Project Workload",
     workloadEmpty: locale === "zh-CN" ? "暂无项目工时数据" : "No project workload yet",
-    deleteProjectConfirm: locale === "zh-CN" ? "删除后将移除该项目、相关任务与笔记，确认删除？" : "Delete this project and all related tasks/notes?",
+    deleteProjectConfirm:
+      locale === "zh-CN"
+        ? "删除后将移除该项目、相关任务与笔记，确认删除？"
+        : "Delete this project and all related tasks/notes?",
     deleteTaskConfirm: locale === "zh-CN" ? "确认删除这个任务？" : "Delete this task?",
     editProject: locale === "zh-CN" ? "编辑项目" : "Edit Project",
     editTask: locale === "zh-CN" ? "编辑任务" : "Edit Task",
@@ -438,25 +483,47 @@ export function LegacyApp() {
     calendarPlanner: locale === "zh-CN" ? "日历编排" : "Calendar Planner",
     calendarStart: locale === "zh-CN" ? "设置开始日期" : "Set Start Date",
     calendarDue: locale === "zh-CN" ? "设置截止日期" : "Set Due Date",
-    calendarHint: locale === "zh-CN" ? "点击日期直接写入任务表单" : "Click a day to assign into task form",
-    monthWeek: locale === "zh-CN" ? ["日", "一", "二", "三", "四", "五", "六"] : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
-    quickCreateHint: locale === "zh-CN" ? "双击单日、拖拽区间，或 Shift+点击跨月选区后创建" : "Double-click, drag a range, or Shift-click across months to create",
+    calendarHint:
+      locale === "zh-CN" ? "点击日期直接写入任务表单" : "Click a day to assign into task form",
+    calendarDayTasks: locale === "zh-CN" ? "当日任务" : "Tasks of the Day",
+    calendarViewAll: locale === "zh-CN" ? "查看全部" : "View All",
+    calendarNoTask: locale === "zh-CN" ? "当日无任务" : "No tasks on this day",
+    todayTasksPanel: locale === "zh-CN" ? "今日任务面板" : "Today's Tasks",
+    todayTasksEmpty: locale === "zh-CN" ? "今日暂无任务" : "No tasks for today",
+    rightClickHint:
+      locale === "zh-CN" ? "右键任务可查看详情" : "Right-click a task to view details",
+    viewDetails: locale === "zh-CN" ? "查看详情" : "View Details",
+    taskDetailsTitle: locale === "zh-CN" ? "任务详情" : "Task Details",
+    createdAtLabel: locale === "zh-CN" ? "创建时间" : "Created At",
+    githubRepo: locale === "zh-CN" ? "GitHub 仓库" : "GitHub Repository",
+    monthWeek:
+      locale === "zh-CN"
+        ? ["日", "一", "二", "三", "四", "五", "六"]
+        : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+    quickCreateHint:
+      locale === "zh-CN"
+        ? "双击单日、拖拽区间，或 Shift+点击跨月选区后创建"
+        : "Double-click, drag a range, or Shift-click across months to create",
     quickCreateEsc: locale === "zh-CN" ? "按 Esc 清除当前选区" : "Press Esc to clear current range",
     plannedRange: locale === "zh-CN" ? "计划" : "Planned",
     actualRange: locale === "zh-CN" ? "实际" : "Actual",
     notStarted: locale === "zh-CN" ? "未开始" : "Not started",
     notFinished: locale === "zh-CN" ? "未完成" : "Not finished",
-    projectQuickCreateHint: locale === "zh-CN" ? "通过弹窗快速创建项目" : "Create a project in a quick modal",
+    projectQuickCreateHint:
+      locale === "zh-CN" ? "通过弹窗快速创建项目" : "Create a project in a quick modal",
     delete: locale === "zh-CN" ? "删除" : "Delete",
     deleteTask: locale === "zh-CN" ? "删除任务" : "Delete Task",
     invalidProjectPayload: locale === "zh-CN" ? "项目数据不合法" : "Invalid project payload",
     invalidTaskPayload: locale === "zh-CN" ? "任务数据不合法" : "Invalid task payload",
     invalidNotePayload: locale === "zh-CN" ? "笔记数据不合法" : "Invalid note payload",
-    notificationsHelp: locale === "zh-CN" ? "截止提醒和变更通知" : "Desktop alerts for deadlines and updates",
-    privacyHelp: locale === "zh-CN" ? "在共享屏幕时隐藏敏感内容" : "Hide sensitive content in shared screens",
+    notificationsHelp:
+      locale === "zh-CN" ? "截止提醒和变更通知" : "Desktop alerts for deadlines and updates",
+    privacyHelp:
+      locale === "zh-CN" ? "在共享屏幕时隐藏敏感内容" : "Hide sensitive content in shared screens",
     telemetryHelp: locale === "zh-CN" ? "匿名使用统计" : "Anonymous usage analytics",
     windowSize: locale === "zh-CN" ? "窗口大小" : "Window Size",
-    windowSizeDesc: locale === "zh-CN" ? "预设或自定义窗口尺寸" : "Apply a preset or custom window size",
+    windowSizeDesc:
+      locale === "zh-CN" ? "预设或自定义窗口尺寸" : "Apply a preset or custom window size",
     windowPreset: locale === "zh-CN" ? "窗口预设" : "Window Preset",
     windowSmall: locale === "zh-CN" ? "小 (1024x720)" : "Small (1024x720)",
     windowMedium: locale === "zh-CN" ? "中 (1280x800)" : "Medium (1280x800)",
@@ -465,7 +532,10 @@ export function LegacyApp() {
     windowWidth: locale === "zh-CN" ? "宽度" : "Width",
     windowHeight: locale === "zh-CN" ? "高度" : "Height",
     applyWindowSize: locale === "zh-CN" ? "应用窗口尺寸" : "Apply Window Size",
-    windowDesktopOnly: locale === "zh-CN" ? "仅桌面端可调整窗口尺寸" : "Window sizing is available in desktop runtime only",
+    windowDesktopOnly:
+      locale === "zh-CN"
+        ? "仅桌面端可调整窗口尺寸"
+        : "Window sizing is available in desktop runtime only",
     projectDateAdjustHint: locale === "zh-CN" ? "日期可随时调整" : "Dates can be adjusted later",
     ganttZoom: locale === "zh-CN" ? "缩放" : "Zoom",
     ganttCompact: locale === "zh-CN" ? "紧凑" : "Compact",
@@ -484,12 +554,20 @@ export function LegacyApp() {
     utilizationRate: locale === "zh-CN" ? "利用率" : "Utilization",
     confirmDeleteTitle: locale === "zh-CN" ? "删除确认" : "Delete Confirmation",
     confirmAction: locale === "zh-CN" ? "确认" : "Confirm",
-    autoTrackWork: locale === "zh-CN" ? "任务完成自动记录工时" : "Auto record work when task is done",
-    autoTrackWorkHelp: locale === "zh-CN" ? "完成任务时自动将已耗工时补齐到预估工时" : "Auto fill spent hours to estimate when finishing a task",
+    autoTrackWork:
+      locale === "zh-CN" ? "任务完成自动记录工时" : "Auto record work when task is done",
+    autoTrackWorkHelp:
+      locale === "zh-CN"
+        ? "完成任务时自动将已耗工时补齐到预估工时"
+        : "Auto fill spent hours to estimate when finishing a task",
     logWorkTitle: locale === "zh-CN" ? "记录完成工时" : "Log Work Hours",
-    logWorkDesc: locale === "zh-CN" ? "输入任务完成时的已耗工时" : "Enter spent hours when marking task done",
+    logWorkDesc:
+      locale === "zh-CN" ? "输入任务完成时的已耗工时" : "Enter spent hours when marking task done",
     useRangeHours: locale === "zh-CN" ? "按起止时间默认" : "Use Date Range Default",
-    rangeHoursHint: locale === "zh-CN" ? "优先按实际开始到完成时间计算，无实际开始时按计划每天 8 小时" : "Prefer actual start-to-finish duration; fallback to 8h/day on planned range",
+    rangeHoursHint:
+      locale === "zh-CN"
+        ? "优先按实际开始到完成时间计算，无实际开始时按计划每天 8 小时"
+        : "Prefer actual start-to-finish duration; fallback to 8h/day on planned range",
     saveAndFinish: locale === "zh-CN" ? "保存并完成" : "Save and Finish",
     taskFlow: locale === "zh-CN" ? "执行流程" : "Execution Flow",
     nextStep: locale === "zh-CN" ? "下一步" : "Next",
@@ -509,14 +587,20 @@ export function LegacyApp() {
     splitByAi: locale === "zh-CN" ? "AI 拆分" : "AI Split",
     splitProjectByAi: locale === "zh-CN" ? "AI 分解项目" : "AI Project Breakdown",
     aiSplitTitle: locale === "zh-CN" ? "AI 子任务拆分" : "AI Subtask Split",
-    aiSplitDesc: locale === "zh-CN" ? "使用本机 Ollama 生成子任务" : "Use local Ollama to generate subtasks",
+    aiSplitDesc:
+      locale === "zh-CN" ? "使用本机 Ollama 生成子任务" : "Use local Ollama to generate subtasks",
     aiProjectSplitTitle: locale === "zh-CN" ? "AI 项目分解" : "AI Project Decomposition",
-    aiProjectSplitDesc: locale === "zh-CN" ? "按项目目标生成任务树（含子任务）" : "Generate a task tree for the project",
+    aiProjectSplitDesc:
+      locale === "zh-CN"
+        ? "按项目目标生成任务树（含子任务）"
+        : "Generate a task tree for the project",
     ollamaModel: locale === "zh-CN" ? "Ollama 模型" : "Ollama Model",
     splitCount: locale === "zh-CN" ? "拆分数量" : "Subtask Count",
     splitPrompt: locale === "zh-CN" ? "拆分要求" : "Split Prompt",
     splitPromptPlaceholder:
-      locale === "zh-CN" ? "例如：先做技术验证，再实现核心功能，最后补测试与文档" : "e.g. Validate approach, implement core, then tests and docs",
+      locale === "zh-CN"
+        ? "例如：先做技术验证，再实现核心功能，最后补测试与文档"
+        : "e.g. Validate approach, implement core, then tests and docs",
     splitDateRange: locale === "zh-CN" ? "规划时间范围" : "Planning Date Range",
     splitFormatPrompt: locale === "zh-CN" ? "生成格式提示词" : "Generation Format Prompt",
     splitFormatPromptHint:
@@ -537,16 +621,31 @@ export function LegacyApp() {
       locale === "zh-CN"
         ? "无法连接 Ollama，请确认本机已启动：ollama serve（默认 http://127.0.0.1:11434）"
         : "Cannot reach Ollama. Start it with `ollama serve` at http://127.0.0.1:11434.",
-    aiSplitInvalid: locale === "zh-CN" ? "AI 返回格式异常，未生成子任务" : "AI response format is invalid. No subtasks created.",
+    aiSplitInvalid:
+      locale === "zh-CN"
+        ? "AI 返回格式异常，未生成子任务"
+        : "AI response format is invalid. No subtasks created.",
     aiSplitDone: locale === "zh-CN" ? "已生成子任务" : "Subtasks created",
-    aiProjectSplitInvalid: locale === "zh-CN" ? "AI 返回格式异常，未生成任务树" : "AI response format is invalid. No task tree created.",
+    aiProjectSplitInvalid:
+      locale === "zh-CN"
+        ? "AI 返回格式异常，未生成任务树"
+        : "AI response format is invalid. No task tree created.",
     aiProjectSplitDone: locale === "zh-CN" ? "已生成项目任务树" : "Project task tree created",
     refreshModels: locale === "zh-CN" ? "刷新模型" : "Refresh Models",
     loadingModels: locale === "zh-CN" ? "正在读取本地模型..." : "Loading local models...",
-    noLocalModels: locale === "zh-CN" ? "未发现本地模型，请先执行 ollama pull" : "No local model found. Run `ollama pull` first.",
-    tauriOnlyModelList: locale === "zh-CN" ? "模型动态列表仅桌面端可用" : "Dynamic model list is available in desktop runtime only",
+    noLocalModels:
+      locale === "zh-CN"
+        ? "未发现本地模型，请先执行 ollama pull"
+        : "No local model found. Run `ollama pull` first.",
+    tauriOnlyModelList:
+      locale === "zh-CN"
+        ? "模型动态列表仅桌面端可用"
+        : "Dynamic model list is available in desktop runtime only",
     dailyCheckinTitle: locale === "zh-CN" ? "今日个人打卡" : "Daily Personal Check-in",
-    dailyCheckinDesc: locale === "zh-CN" ? "记录状态，形成长期个人趋势" : "Track your state and build long-term personal trends",
+    dailyCheckinDesc:
+      locale === "zh-CN"
+        ? "记录状态，形成长期个人趋势"
+        : "Track your state and build long-term personal trends",
     mood: locale === "zh-CN" ? "心情" : "Mood",
     energy: locale === "zh-CN" ? "精力" : "Energy",
     focusHoursToday: locale === "zh-CN" ? "专注时长(小时)" : "Focused Hours",
@@ -562,8 +661,14 @@ export function LegacyApp() {
     noCheckinYet: locale === "zh-CN" ? "还没有打卡记录" : "No check-in data yet",
     latestReflection: locale === "zh-CN" ? "最近复盘" : "Latest Reflection",
     checkinInvalid: locale === "zh-CN" ? "打卡数据不合法" : "Invalid check-in data",
-    moodOptions: locale === "zh-CN" ? ["1 很差", "2 偏低", "3 一般", "4 不错", "5 很好"] : ["1 Very Low", "2 Low", "3 Neutral", "4 Good", "5 Great"],
-    energyOptions: locale === "zh-CN" ? ["1 透支", "2 疲惫", "3 尚可", "4 充沛", "5 极佳"] : ["1 Drained", "2 Tired", "3 Fair", "4 Energetic", "5 Peak"],
+    moodOptions:
+      locale === "zh-CN"
+        ? ["1 很差", "2 偏低", "3 一般", "4 不错", "5 很好"]
+        : ["1 Very Low", "2 Low", "3 Neutral", "4 Good", "5 Great"],
+    energyOptions:
+      locale === "zh-CN"
+        ? ["1 透支", "2 疲惫", "3 尚可", "4 充沛", "5 极佳"]
+        : ["1 Drained", "2 Tired", "3 Fair", "4 Energetic", "5 Peak"],
   };
   const autoTrackWorkOnDone = settings.autoTrackWorkOnDone ?? true;
 
@@ -603,17 +708,22 @@ export function LegacyApp() {
   }, [applyWindowSize, settings.windowHeight, settings.windowWidth]);
 
   const scopedTasks = useMemo(
-    () => (selectedProjectId ? tasks.filter((task) => task.projectId === selectedProjectId) : tasks),
+    () =>
+      selectedProjectId ? tasks.filter((task) => task.projectId === selectedProjectId) : tasks,
     [selectedProjectId, tasks],
   );
   const scopedProjects = useMemo(
-    () => (selectedProjectId ? projects.filter((project) => project.id === selectedProjectId) : projects),
+    () =>
+      selectedProjectId ? projects.filter((project) => project.id === selectedProjectId) : projects,
     [projects, selectedProjectId],
   );
   const [ganttZoom, setGanttZoom] = useState<"compact" | "comfortable" | "detailed">("comfortable");
   const [ganttStatusFilter, setGanttStatusFilter] = useState<"all" | TaskStatus>("all");
   const ganttTasks = useMemo(
-    () => (ganttStatusFilter === "all" ? scopedTasks : scopedTasks.filter((task) => task.status === ganttStatusFilter)),
+    () =>
+      ganttStatusFilter === "all"
+        ? scopedTasks
+        : scopedTasks.filter((task) => task.status === ganttStatusFilter),
     [ganttStatusFilter, scopedTasks],
   );
   const sortedScopedTasks = useMemo(
@@ -634,6 +744,10 @@ export function LegacyApp() {
     [scopedTasks],
   );
   const taskTitleMap = useMemo(() => new Map(tasks.map((task) => [task.id, task.title])), [tasks]);
+  const projectNameMap = useMemo(
+    () => new Map(projects.map((project) => [project.id, project.name])),
+    [projects],
+  );
   const taskHierarchy = useMemo(() => {
     const childrenMap = new Map<string, Task[]>();
     const roots: Task[] = [];
@@ -646,7 +760,12 @@ export function LegacyApp() {
         roots.push(task);
       }
     }
-    const ordered: Array<{ task: Task; depth: number; isLast: boolean; ancestorHasSibling: boolean[] }> = [];
+    const ordered: Array<{
+      task: Task;
+      depth: number;
+      isLast: boolean;
+      ancestorHasSibling: boolean[];
+    }> = [];
     const visit = (task: Task, depth: number, isLast: boolean, ancestorHasSibling: boolean[]) => {
       ordered.push({ task, depth, isLast, ancestorHasSibling });
       const children = childrenMap.get(task.id) ?? [];
@@ -664,8 +783,14 @@ export function LegacyApp() {
     return ordered;
   }, [sortedScopedTasks]);
 
-  const kpi = useMemo(() => workspaceMetrics(scopedProjects, scopedTasks), [scopedProjects, scopedTasks]);
-  const gantt = useMemo(() => timelineBounds(ganttTasks.length > 0 ? ganttTasks : scopedTasks), [ganttTasks, scopedTasks]);
+  const kpi = useMemo(
+    () => workspaceMetrics(scopedProjects, scopedTasks),
+    [scopedProjects, scopedTasks],
+  );
+  const gantt = useMemo(
+    () => timelineBounds(ganttTasks.length > 0 ? ganttTasks : scopedTasks),
+    [ganttTasks, scopedTasks],
+  );
   const taskStatusData = useMemo(() => {
     const total = Math.max(scopedTasks.length, 1);
     const todo = scopedTasks.filter((task) => task.status === "todo").length;
@@ -760,9 +885,18 @@ export function LegacyApp() {
   const personalSummary = useMemo(() => {
     const streak = calculateCheckinStreak(recentCheckins.map((item) => item.date));
     const recent7 = recentCheckins.slice(0, 7);
-    const moodAvg = recent7.length === 0 ? 0 : Math.round((recent7.reduce((sum, item) => sum + item.mood, 0) / recent7.length) * 10) / 10;
-    const energyAvg = recent7.length === 0 ? 0 : Math.round((recent7.reduce((sum, item) => sum + item.energy, 0) / recent7.length) * 10) / 10;
-    const focusHours = Math.round(recent7.reduce((sum, item) => sum + item.focusHours, 0) * 10) / 10;
+    const moodAvg =
+      recent7.length === 0
+        ? 0
+        : Math.round((recent7.reduce((sum, item) => sum + item.mood, 0) / recent7.length) * 10) /
+          10;
+    const energyAvg =
+      recent7.length === 0
+        ? 0
+        : Math.round((recent7.reduce((sum, item) => sum + item.energy, 0) / recent7.length) * 10) /
+          10;
+    const focusHours =
+      Math.round(recent7.reduce((sum, item) => sum + item.focusHours, 0) * 10) / 10;
     return { streak, moodAvg, energyAvg, focusHours };
   }, [recentCheckins]);
   const [dailyCheckinForm, setDailyCheckinForm] = useState({
@@ -836,8 +970,14 @@ export function LegacyApp() {
   const parentTaskCandidates = useMemo(
     () =>
       tasks
-        .filter((task) => task.projectId === taskForm.projectId && (!editingTaskId || task.id !== editingTaskId))
-        .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.createdAt.localeCompare(b.createdAt)),
+        .filter(
+          (task) =>
+            task.projectId === taskForm.projectId && (!editingTaskId || task.id !== editingTaskId),
+        )
+        .sort(
+          (a, b) =>
+            a.startDate.localeCompare(b.startDate) || a.createdAt.localeCompare(b.createdAt),
+        ),
     [editingTaskId, taskForm.projectId, tasks],
   );
   const [calendarCursor, setCalendarCursor] = useState(() => startOfMonth(new Date()));
@@ -850,14 +990,28 @@ export function LegacyApp() {
   const [showRangeCreateAction, setShowRangeCreateAction] = useState(false);
   const [suppressCalendarClick, setSuppressCalendarClick] = useState(false);
   const [rangeAnchorDate, setRangeAnchorDate] = useState("");
+  const [calendarInspectDate, setCalendarInspectDate] = useState(() => dateToKey(new Date()));
+  const [taskContextMenu, setTaskContextMenu] = useState<{
+    taskId: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [taskDetailTaskId, setTaskDetailTaskId] = useState<string | null>(null);
+  const taskContextMenuRef = useRef<HTMLDivElement | null>(null);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
-  const [deleteDialog, setDeleteDialog] = useState<{ kind: "project" | "task"; id: string } | null>(null);
-  const [worklogDialog, setWorklogDialog] = useState<{ taskId: string; spentHours: number } | null>(null);
+  const [deleteDialog, setDeleteDialog] = useState<{ kind: "project" | "task"; id: string } | null>(
+    null,
+  );
+  const [worklogDialog, setWorklogDialog] = useState<{ taskId: string; spentHours: number } | null>(
+    null,
+  );
   const monthGrid = useMemo(() => getMonthGrid(calendarCursor), [calendarCursor]);
   const todayKey = useMemo(() => dateToKey(new Date()), []);
   const taskCalendarMap = useMemo(() => {
     const map = new Map<string, { id: string; title: string; status: TaskStatus }[]>();
-    const sourceTasks = tasks.filter((task) => !taskForm.projectId || task.projectId === taskForm.projectId);
+    const sourceTasks = tasks.filter(
+      (task) => !taskForm.projectId || task.projectId === taskForm.projectId,
+    );
     for (const task of sourceTasks) {
       const start = new Date(`${task.startDate}T00:00:00`);
       const end = new Date(`${task.dueDate}T00:00:00`);
@@ -872,6 +1026,31 @@ export function LegacyApp() {
     }
     return map;
   }, [taskForm.projectId, tasks]);
+  const calendarInspectTasks = useMemo(
+    () => taskCalendarMap.get(calendarInspectDate) ?? [],
+    [calendarInspectDate, taskCalendarMap],
+  );
+  const taskDetailTarget = useMemo(
+    () => tasks.find((task) => task.id === taskDetailTaskId) ?? null,
+    [taskDetailTaskId, tasks],
+  );
+  const todayTasks = useMemo(
+    () =>
+      tasks
+        .filter(
+          (task) =>
+            (!taskForm.projectId || task.projectId === taskForm.projectId) &&
+            task.startDate <= todayKey &&
+            todayKey <= task.dueDate,
+        )
+        .sort(
+          (a, b) =>
+            TASK_STATUS_ORDER[a.status] - TASK_STATUS_ORDER[b.status] ||
+            a.dueDate.localeCompare(b.dueDate) ||
+            a.startDate.localeCompare(b.startDate),
+        ),
+    [taskForm.projectId, tasks, todayKey],
+  );
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") {
@@ -903,6 +1082,14 @@ export function LegacyApp() {
         setEditingProjectId(null);
         return;
       }
+      if (taskContextMenu) {
+        setTaskContextMenu(null);
+        return;
+      }
+      if (taskDetailTaskId) {
+        setTaskDetailTaskId(null);
+        return;
+      }
       setSelectedRangeStart("");
       setSelectedRangeEnd("");
       setDragRangeStart("");
@@ -913,7 +1100,39 @@ export function LegacyApp() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [aiProjectSplitDialog, aiSplitDialog, deleteDialog, projectDialogOpen, taskDialogOpen, worklogDialog]);
+  }, [
+    aiProjectSplitDialog,
+    aiSplitDialog,
+    deleteDialog,
+    projectDialogOpen,
+    taskContextMenu,
+    taskDetailTaskId,
+    taskDialogOpen,
+    worklogDialog,
+  ]);
+
+  useEffect(() => {
+    if (!taskContextMenu) {
+      return;
+    }
+    const onPointerDown = (event: PointerEvent) => {
+      if (
+        taskContextMenuRef.current &&
+        event.target instanceof Node &&
+        taskContextMenuRef.current.contains(event.target)
+      ) {
+        return;
+      }
+      setTaskContextMenu(null);
+    };
+    const onWindowBlur = () => setTaskContextMenu(null);
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("blur", onWindowBlur);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("blur", onWindowBlur);
+    };
+  }, [taskContextMenu]);
 
   useEffect(() => {
     const onShortcutKeyDown = (event: KeyboardEvent) => {
@@ -1126,7 +1345,12 @@ export function LegacyApp() {
     } finally {
       setOllamaModelsLoading(false);
     }
-  }, [isTauriWindowApiAvailable, text.noLocalModels, text.ollamaUnavailable, text.tauriOnlyModelList]);
+  }, [
+    isTauriWindowApiAvailable,
+    text.noLocalModels,
+    text.ollamaUnavailable,
+    text.tauriOnlyModelList,
+  ]);
 
   const aiFormatPromptTemplate = useMemo(() => {
     const count = aiSplitDialog?.count ?? 5;
@@ -1146,7 +1370,9 @@ export function LegacyApp() {
       await navigator.clipboard.writeText(aiFormatPromptTemplate);
       setAiFormatCopied(true);
     } catch {
-      setAiSplitDialog((previous) => (previous ? { ...previous, error: text.copyFailed } : previous));
+      setAiSplitDialog((previous) =>
+        previous ? { ...previous, error: text.copyFailed } : previous,
+      );
       setAiFormatCopied(false);
     }
   }, [aiFormatPromptTemplate, text.copyFailed]);
@@ -1155,7 +1381,9 @@ export function LegacyApp() {
       await navigator.clipboard.writeText(aiProjectFormatPromptTemplate);
       setAiProjectFormatCopied(true);
     } catch {
-      setAiProjectSplitDialog((previous) => (previous ? { ...previous, error: text.copyFailed } : previous));
+      setAiProjectSplitDialog((previous) =>
+        previous ? { ...previous, error: text.copyFailed } : previous,
+      );
       setAiProjectFormatCopied(false);
     }
   }, [aiProjectFormatPromptTemplate, text.copyFailed]);
@@ -1183,7 +1411,7 @@ export function LegacyApp() {
         }
         const preferredModel = models.includes("llama3.1:8b")
           ? "llama3.1:8b"
-          : models[0] ?? previous.model;
+          : (models[0] ?? previous.model);
         return { ...previous, model: preferredModel };
       });
     })();
@@ -1215,7 +1443,7 @@ export function LegacyApp() {
         }
         const preferredModel = models.includes("llama3.1:8b")
           ? "llama3.1:8b"
-          : models[0] ?? previous.model;
+          : (models[0] ?? previous.model);
         return { ...previous, model: preferredModel };
       });
     })();
@@ -1227,7 +1455,9 @@ export function LegacyApp() {
     }
     const parentTask = tasks.find((task) => task.id === aiSplitDialog.taskId);
     if (!parentTask) {
-      setAiSplitDialog((previous) => (previous ? { ...previous, error: text.aiSplitInvalid } : previous));
+      setAiSplitDialog((previous) =>
+        previous ? { ...previous, error: text.aiSplitInvalid } : previous,
+      );
       return;
     }
     setAiSplitDialog((previous) =>
@@ -1243,7 +1473,12 @@ export function LegacyApp() {
         : previous,
     );
     const systemPrompt = aiFormatPromptTemplate;
-    const planRange = resolveTaskRange(parentTask.startDate, parentTask.dueDate, aiSplitDialog.startDate, aiSplitDialog.dueDate);
+    const planRange = resolveTaskRange(
+      parentTask.startDate,
+      parentTask.dueDate,
+      aiSplitDialog.startDate,
+      aiSplitDialog.dueDate,
+    );
     const planStart = planRange.startDate;
     const planDue = planRange.dueDate;
     const userPrompt =
@@ -1316,7 +1551,9 @@ export function LegacyApp() {
           priority: draft.priority ?? parentTask.priority,
           startDate: range.startDate,
           dueDate: range.dueDate,
-          estimateHours: draft.estimateHours ?? Math.max(1, Math.round(parentTask.estimateHours / Math.max(1, drafts.length))),
+          estimateHours:
+            draft.estimateHours ??
+            Math.max(1, Math.round(parentTask.estimateHours / Math.max(1, drafts.length))),
           spentHours: 0,
         });
       }
@@ -1354,7 +1591,9 @@ export function LegacyApp() {
     }
     const project = projects.find((item) => item.id === aiProjectSplitDialog.projectId);
     if (!project) {
-      setAiProjectSplitDialog((previous) => (previous ? { ...previous, error: text.aiProjectSplitInvalid } : previous));
+      setAiProjectSplitDialog((previous) =>
+        previous ? { ...previous, error: text.aiProjectSplitInvalid } : previous,
+      );
       return;
     }
     setAiProjectSplitDialog((previous) =>
@@ -1370,11 +1609,17 @@ export function LegacyApp() {
         : previous,
     );
     const systemPrompt = aiProjectFormatPromptTemplate;
-    const planRange = resolveTaskRange(project.startDate, project.endDate, aiProjectSplitDialog.startDate, aiProjectSplitDialog.dueDate);
+    const planRange = resolveTaskRange(
+      project.startDate,
+      project.endDate,
+      aiProjectSplitDialog.startDate,
+      aiProjectSplitDialog.dueDate,
+    );
     const planStart = planRange.startDate;
     const planDue = planRange.dueDate;
     const projectTasks = tasks.filter((item) => item.projectId === project.id);
-    const existingTaskTitles = projectTasks.length === 0 ? "-" : projectTasks.map((item) => item.title).join(", ");
+    const existingTaskTitles =
+      projectTasks.length === 0 ? "-" : projectTasks.map((item) => item.title).join(", ");
     const userPrompt =
       locale === "zh-CN"
         ? `项目：${project.name}\n项目说明：${project.description || "无"}\n项目时间：${project.startDate} 到 ${project.endDate}\n本次分解时间范围：${planStart} 到 ${planDue}\n现有任务：${existingTaskTitles}\n附加要求：${aiProjectSplitDialog.prompt || "无"}`
@@ -1580,10 +1825,29 @@ export function LegacyApp() {
     setView("tasks");
   };
 
+  const openTaskDetail = (taskId: string) => {
+    setTaskDetailTaskId(taskId);
+    setTaskContextMenu(null);
+  };
+
+  const openTaskContextMenu = (event: MouseEvent<HTMLElement>, taskId: string) => {
+    event.preventDefault();
+    const menuWidth = 170;
+    const menuHeight = 110;
+    const x = Math.min(event.clientX, window.innerWidth - menuWidth - 8);
+    const y = Math.min(event.clientY, window.innerHeight - menuHeight - 8);
+    setTaskContextMenu({ taskId, x, y });
+  };
+
   const cancelTaskEdit = () => {
     setEditingTaskId(null);
     setTaskError("");
-    setTaskForm((previous) => ({ ...previous, title: "", spentHours: 0, parentTaskId: TASK_CREATE_DEFAULTS.parentTaskId }));
+    setTaskForm((previous) => ({
+      ...previous,
+      title: "",
+      spentHours: 0,
+      parentTaskId: TASK_CREATE_DEFAULTS.parentTaskId,
+    }));
     setTaskDialogOpen(false);
   };
 
@@ -1750,7 +2014,9 @@ export function LegacyApp() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.18, delay: index * 0.02 }}
                   className={`w-full rounded-lg border p-3 transition ${
-                    project.id === selectedProjectId ? "border-primary bg-primary/5" : "border-border hover:bg-accent/40"
+                    project.id === selectedProjectId
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:bg-accent/40"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -1765,7 +2031,9 @@ export function LegacyApp() {
                     >
                       <p className="truncate text-sm font-medium">{project.name}</p>
                       <div className="mt-1 flex items-center gap-1.5">
-                        <span className={`${markerBase} ${projectStatusTone[project.status]}`}>{t.status[project.status]}</span>
+                        <span className={`${markerBase} ${projectStatusTone[project.status]}`}>
+                          {t.status[project.status]}
+                        </span>
                         <span className="inline-flex h-2 w-2 rounded-full bg-muted-foreground/40" />
                       </div>
                     </button>
@@ -1784,22 +2052,32 @@ export function LegacyApp() {
             </div>
           </div>
           <div className="shrink-0 border-t bg-muted/30 p-3 md:p-4">
-            <div className="mb-2 text-xs font-medium text-muted-foreground">{t.sidebar.shortcuts}</div>
+            <div className="mb-2 text-xs font-medium text-muted-foreground">
+              {t.sidebar.shortcuts}
+            </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[11px] text-muted-foreground">
               <div className="flex items-center gap-2">
-                <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-border/60 bg-gradient-to-b from-muted to-muted/80 px-1.5 font-mono text-[10px] font-medium shadow-[0_2px_0_0_rgb(0,0,0,0.1)] dark:shadow-[0_2px_0_0_rgb(255,255,255,0.05)]">Ctrl+N</kbd>
+                <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-border/60 bg-gradient-to-b from-muted to-muted/80 px-1.5 font-mono text-[10px] font-medium shadow-[0_2px_0_0_rgb(0,0,0,0.1)] dark:shadow-[0_2px_0_0_rgb(255,255,255,0.05)]">
+                  Ctrl+N
+                </kbd>
                 <span>{t.sidebar.shortcutsList.newProject}</span>
               </div>
               <div className="flex items-center gap-2">
-                <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-border/60 bg-gradient-to-b from-muted to-muted/80 px-1.5 font-mono text-[10px] font-medium shadow-[0_2px_0_0_rgb(0,0,0,0.1)] dark:shadow-[0_2px_0_0_rgb(255,255,255,0.05)]">Space</kbd>
+                <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-border/60 bg-gradient-to-b from-muted to-muted/80 px-1.5 font-mono text-[10px] font-medium shadow-[0_2px_0_0_rgb(0,0,0,0.1)] dark:shadow-[0_2px_0_0_rgb(255,255,255,0.05)]">
+                  Space
+                </kbd>
                 <span>{t.sidebar.shortcutsList.toggleTimer}</span>
               </div>
               <div className="flex items-center gap-2">
-                <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-border/60 bg-gradient-to-b from-muted to-muted/80 px-1.5 font-mono text-[10px] font-medium shadow-[0_2px_0_0_rgb(0,0,0,0.1)] dark:shadow-[0_2px_0_0_rgb(255,255,255,0.05)]">R</kbd>
+                <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-border/60 bg-gradient-to-b from-muted to-muted/80 px-1.5 font-mono text-[10px] font-medium shadow-[0_2px_0_0_rgb(0,0,0,0.1)] dark:shadow-[0_2px_0_0_rgb(255,255,255,0.05)]">
+                  R
+                </kbd>
                 <span>{t.sidebar.shortcutsList.resetTimer}</span>
               </div>
               <div className="flex items-center gap-2">
-                <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-border/60 bg-gradient-to-b from-muted to-muted/80 px-1.5 font-mono text-[10px] font-medium shadow-[0_2px_0_0_rgb(0,0,0,0.1)] dark:shadow-[0_2px_0_0_rgb(255,255,255,0.05)]">1-6</kbd>
+                <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-border/60 bg-gradient-to-b from-muted to-muted/80 px-1.5 font-mono text-[10px] font-medium shadow-[0_2px_0_0_rgb(0,0,0,0.1)] dark:shadow-[0_2px_0_0_rgb(255,255,255,0.05)]">
+                  1-6
+                </kbd>
                 <span>{t.sidebar.shortcutsList.switchView}</span>
               </div>
             </div>
@@ -1812,1366 +2090,1969 @@ export function LegacyApp() {
               ? "flex flex-col gap-4 overflow-hidden p-0"
               : view === "tasks"
                 ? "flex flex-col gap-4 overflow-hidden p-4 md:p-6"
-              : "space-y-4 overflow-y-auto p-4 md:p-6"
+                : "space-y-4 overflow-y-auto p-4 md:p-6"
           }`}
         >
           {view !== "pomodoro" && view !== "chat" && (
-          <header className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-xl font-semibold tracking-tight">{t.views[view]}</h2>
-            {currentProject && view !== "settings" ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline">{currentProject.name}</Badge>
-                <span className={`${markerBase} ${projectStatusTone[currentProject.status]}`}>{t.status[currentProject.status]}</span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  className="text-destructive hover:text-destructive"
-                  onClick={() => handleDeleteProject(currentProject.id)}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-                <Select
-                  value={currentProject.status}
-                  onValueChange={(value) => updateProjectStatus(currentProject.id, value as ProjectStatus)}
-                >
-                  <SelectTrigger className={`h-8 w-[130px] ${projectStatusTriggerTone[currentProject.status]}`}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PROJECT_STATUSES.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        <span className={`${markerBase} ${projectStatusTone[status]}`}>{t.status[status]}</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : null}
-          </header>
+            <header className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-xl font-semibold tracking-tight">{t.views[view]}</h2>
+              {currentProject && view !== "settings" ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline">{currentProject.name}</Badge>
+                  <span className={`${markerBase} ${projectStatusTone[currentProject.status]}`}>
+                    {t.status[currentProject.status]}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => handleDeleteProject(currentProject.id)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                  <Select
+                    value={currentProject.status}
+                    onValueChange={(value) =>
+                      updateProjectStatus(currentProject.id, value as ProjectStatus)
+                    }
+                  >
+                    <SelectTrigger
+                      className={`h-8 w-[130px] ${projectStatusTriggerTone[currentProject.status]}`}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROJECT_STATUSES.map((status) => (
+                        <SelectItem key={status} value={status}>
+                          <span className={`${markerBase} ${projectStatusTone[status]}`}>
+                            {t.status[status]}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+            </header>
           )}
 
           <AnimatePresence mode="wait" initial={false}>
             {view === "dashboard" ? (
-            <motion.section key="dashboard" className="space-y-4" {...pageTransition}>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {[
-                  { label: t.kpi.projects, value: kpi.projects, icon: FolderKanban, tone: "text-sky-600" },
-                  { label: t.kpi.tasks, value: kpi.tasks, icon: ListTodo, tone: "text-indigo-600" },
-                  { label: t.kpi.completionRate, value: `${kpi.completionRate}%`, icon: CheckCircle2, tone: "text-emerald-600" },
-                  { label: t.kpi.remainingDays, value: `${kpi.remainingDays} ${t.units.days}`, icon: CalendarDays, tone: "text-amber-600" },
-                ].map((item, index) => (
-                  <motion.div
-                    key={item.label}
-                    layout
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.2, delay: index * 0.03 }}
-                  >
-                    <Card>
-                      <CardHeader className="pb-2">
-                        <CardDescription className="flex items-center gap-2">
-                          <item.icon className={`h-4 w-4 ${item.tone}`} />
-                          <span>{item.label}</span>
-                        </CardDescription>
-                        <CardTitle className="text-2xl">{item.value}</CardTitle>
-                      </CardHeader>
-                    </Card>
-                  </motion.div>
-                ))}
-              </div>
+              <motion.section key="dashboard" className="space-y-4" {...pageTransition}>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  {[
+                    {
+                      label: t.kpi.projects,
+                      value: kpi.projects,
+                      icon: FolderKanban,
+                      tone: "text-sky-600",
+                    },
+                    {
+                      label: t.kpi.tasks,
+                      value: kpi.tasks,
+                      icon: ListTodo,
+                      tone: "text-indigo-600",
+                    },
+                    {
+                      label: t.kpi.completionRate,
+                      value: `${kpi.completionRate}%`,
+                      icon: CheckCircle2,
+                      tone: "text-emerald-600",
+                    },
+                    {
+                      label: t.kpi.remainingDays,
+                      value: `${kpi.remainingDays} ${t.units.days}`,
+                      icon: CalendarDays,
+                      tone: "text-amber-600",
+                    },
+                  ].map((item, index) => (
+                    <motion.div
+                      key={item.label}
+                      layout
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.2, delay: index * 0.03 }}
+                    >
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardDescription className="flex items-center gap-2">
+                            <item.icon className={`h-4 w-4 ${item.tone}`} />
+                            <span>{item.label}</span>
+                          </CardDescription>
+                          <CardTitle className="text-2xl">{item.value}</CardTitle>
+                        </CardHeader>
+                      </Card>
+                    </motion.div>
+                  ))}
+                </div>
 
-              <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.3fr_1fr]">
+                <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.3fr_1fr]">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <HeartPulse className="h-4 w-4 text-rose-500" />
+                        {text.dailyCheckinTitle}
+                      </CardTitle>
+                      <CardDescription>{text.dailyCheckinDesc}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <form className="space-y-3" onSubmit={saveDailyCheckin}>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>{text.mood}</Label>
+                            <Select
+                              value={`${dailyCheckinForm.mood}`}
+                              onValueChange={(value) => {
+                                setDailyCheckinForm((previous) => ({
+                                  ...previous,
+                                  mood: Number(value) as 1 | 2 | 3 | 4 | 5,
+                                }));
+                                setDailyCheckinSaved(false);
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[1, 2, 3, 4, 5].map((level) => (
+                                  <SelectItem key={`mood-${level}`} value={`${level}`}>
+                                    <div className="flex items-center gap-2">
+                                      <span
+                                        className={`h-2.5 w-2.5 rounded-full ${moodColors[level as 1 | 2 | 3 | 4 | 5]}`}
+                                      />
+                                      {text.moodOptions[level - 1]}
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>{text.energy}</Label>
+                            <Select
+                              value={`${dailyCheckinForm.energy}`}
+                              onValueChange={(value) => {
+                                setDailyCheckinForm((previous) => ({
+                                  ...previous,
+                                  energy: Number(value) as 1 | 2 | 3 | 4 | 5,
+                                }));
+                                setDailyCheckinSaved(false);
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[1, 2, 3, 4, 5].map((level) => (
+                                  <SelectItem key={`energy-${level}`} value={`${level}`}>
+                                    <div className="flex items-center gap-2">
+                                      <span
+                                        className={`h-2.5 w-2.5 rounded-full ${energyColors[level as 1 | 2 | 3 | 4 | 5]}`}
+                                      />
+                                      {text.energyOptions[level - 1]}
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>{text.focusHoursToday}</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={24}
+                            step={0.5}
+                            value={dailyCheckinForm.focusHours}
+                            onChange={(event) => {
+                              const nextFocusHours = Math.max(
+                                0,
+                                Number(event.currentTarget?.value ?? 0) || 0,
+                              );
+                              setDailyCheckinForm((previous) => ({
+                                ...previous,
+                                focusHours: nextFocusHours,
+                              }));
+                              setDailyCheckinSaved(false);
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>{text.reflection}</Label>
+                          <Textarea
+                            value={dailyCheckinForm.reflection}
+                            onChange={(event) => {
+                              const nextReflection = event.currentTarget?.value ?? "";
+                              setDailyCheckinForm((previous) => ({
+                                ...previous,
+                                reflection: nextReflection,
+                              }));
+                              setDailyCheckinSaved(false);
+                            }}
+                            placeholder={
+                              locale === "zh-CN"
+                                ? "例如：今天最有效的工作方式是什么？"
+                                : "What worked best for you today?"
+                            }
+                          />
+                        </div>
+                        {dailyCheckinError ? (
+                          <p className="text-sm text-destructive">{dailyCheckinError}</p>
+                        ) : null}
+                        <div className="flex items-center justify-end gap-2">
+                          {dailyCheckinSaved ? (
+                            <span className="text-xs text-emerald-600">{text.checkinSaved}</span>
+                          ) : null}
+                          <Button type="submit">{text.saveCheckin}</Button>
+                        </div>
+                      </form>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Brain className="h-4 w-4" />
+                        {text.personalInsights}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="rounded-md border p-2">
+                          <div className="flex items-center gap-1.5">
+                            <Flame className="h-3.5 w-3.5 text-orange-500" />
+                            <p className="text-xs text-muted-foreground">{text.checkinStreak}</p>
+                          </div>
+                          <p className="text-lg font-semibold">
+                            {personalSummary.streak} {text.dayUnit}
+                          </p>
+                        </div>
+                        <div className="rounded-md border p-2">
+                          <div className="flex items-center gap-1.5">
+                            <Battery className="h-3.5 w-3.5 text-blue-500" />
+                            <p className="text-xs text-muted-foreground">{text.sevenDayFocus}</p>
+                          </div>
+                          <p className="text-lg font-semibold">{personalSummary.focusHours}h</p>
+                        </div>
+                        <div className="rounded-md border p-2">
+                          <div className="flex items-center gap-1.5">
+                            <Smile className="h-3.5 w-3.5 text-emerald-500" />
+                            <p className="text-xs text-muted-foreground">{text.sevenDayMood}</p>
+                          </div>
+                          <p className="text-lg font-semibold">{personalSummary.moodAvg || "-"}</p>
+                        </div>
+                        <div className="rounded-md border p-2">
+                          <div className="flex items-center gap-1.5">
+                            <Zap className="h-3.5 w-3.5 text-violet-500" />
+                            <p className="text-xs text-muted-foreground">{text.sevenDayEnergy}</p>
+                          </div>
+                          <p className="text-lg font-semibold">
+                            {personalSummary.energyAvg || "-"}
+                          </p>
+                        </div>
+                      </div>
+                      <Separator />
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          {text.latestReflection}
+                        </p>
+                        {recentCheckins.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">{text.noCheckinYet}</p>
+                        ) : (
+                          recentCheckins.slice(0, 3).map((item) => (
+                            <div key={item.id} className="rounded-md border p-2">
+                              <p className="text-xs text-muted-foreground">
+                                {formatDate(item.date, locale)}
+                              </p>
+                              <p className="text-sm">{item.reflection || "-"}</p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <BarChart3 className="h-4 w-4" />
+                        {text.taskStatusChart}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {taskStatusData.items.map((item) => {
+                        const width = Math.max(
+                          6,
+                          Math.round((item.value / taskStatusData.total) * 100),
+                        );
+                        return (
+                          <div key={item.key} className="space-y-1">
+                            <div className="flex items-center justify-between text-xs">
+                              <span>{item.label}</span>
+                              <span className="text-muted-foreground">{item.value}</span>
+                            </div>
+                            <div className="h-2 rounded-full bg-muted">
+                              <motion.div
+                                className={`h-2 rounded-full ${item.className}`}
+                                initial={{ width: 0 }}
+                                animate={{ width: `${width}%` }}
+                                transition={{ duration: 0.35, ease: "easeOut" }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <PieChart className="h-4 w-4" />
+                        {text.priorityChart}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center gap-4">
+                        <motion.div
+                          className="h-24 w-24 rounded-full border"
+                          style={{ backgroundImage: priorityData.gradient }}
+                          initial={{ rotate: -50, opacity: 0.8 }}
+                          animate={{ rotate: 0, opacity: 1 }}
+                          transition={{ duration: 0.35, ease: "easeOut" }}
+                        />
+                        <div className="space-y-1 text-xs">
+                          <p>
+                            <span className="mr-1 inline-block h-2 w-2 rounded-full bg-lime-500" />
+                            {t.priority.low}: {priorityData.low}
+                          </p>
+                          <p>
+                            <span className="mr-1 inline-block h-2 w-2 rounded-full bg-orange-500" />
+                            {t.priority.medium}: {priorityData.medium}
+                          </p>
+                          <p>
+                            <span className="mr-1 inline-block h-2 w-2 rounded-full bg-rose-500" />
+                            {t.priority.high}: {priorityData.high}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <BarChart3 className="h-4 w-4" />
+                        {text.workloadChart}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {projectWorkloadData.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">{text.workloadEmpty}</p>
+                      ) : (
+                        projectWorkloadData.map((item) => (
+                          <div key={item.id} className="space-y-1">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="truncate pr-2">{item.name}</span>
+                              <span className="text-muted-foreground">
+                                {item.spent}/{item.estimate || 0}h
+                              </span>
+                            </div>
+                            <div className="h-2 rounded-full bg-muted">
+                              <motion.div
+                                className={`h-2 rounded-full ${item.ratio > 100 ? "bg-red-500" : "bg-cyan-500"}`}
+                                initial={{ width: 0 }}
+                                animate={{ width: `${Math.max(4, Math.min(100, item.ratio))}%` }}
+                                transition={{ duration: 0.35, ease: "easeOut" }}
+                              />
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <HeartPulse className="h-4 w-4 text-rose-500" />
-                      {text.dailyCheckinTitle}
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <CardTitle>{t.section.gantt}</CardTitle>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Label className="text-xs text-muted-foreground">{text.ganttZoom}</Label>
+                        <Select
+                          value={ganttZoom}
+                          onValueChange={(value) =>
+                            setGanttZoom(value as "compact" | "comfortable" | "detailed")
+                          }
+                        >
+                          <SelectTrigger className="h-8 w-[128px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="compact">{text.ganttCompact}</SelectItem>
+                            <SelectItem value="comfortable">{text.ganttComfortable}</SelectItem>
+                            <SelectItem value="detailed">{text.ganttDetailed}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-muted-foreground">{text.ganttFilter}</span>
+                      <Button
+                        size="sm"
+                        variant={ganttStatusFilter === "all" ? "default" : "outline"}
+                        onClick={() => setGanttStatusFilter("all")}
+                      >
+                        {text.ganttAll}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={ganttStatusFilter === "todo" ? "default" : "outline"}
+                        onClick={() => setGanttStatusFilter("todo")}
+                      >
+                        {t.status.todo}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={ganttStatusFilter === "doing" ? "default" : "outline"}
+                        onClick={() => setGanttStatusFilter("doing")}
+                      >
+                        {t.status.doing}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={ganttStatusFilter === "done" ? "default" : "outline"}
+                        onClick={() => setGanttStatusFilter("done")}
+                      >
+                        {t.status.done}
+                      </Button>
+                      <div className="ml-auto flex items-center gap-3 text-[11px] text-muted-foreground">
+                        <span className="inline-flex items-center gap-1">
+                          <span className="h-2 w-2 rounded-full bg-slate-400" />
+                          {t.status.todo}
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <span className="h-2 w-2 rounded-full bg-amber-500" />
+                          {t.status.doing}
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                          {t.status.done}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto pb-1">
+                      <div
+                        className="relative space-y-2"
+                        style={{
+                          width: `${ganttTimelineWidth + 280}px`,
+                          minWidth: `${ganttTimelineWidth + 280}px`,
+                        }}
+                      >
+                        {ganttTodayPosition !== null ? (
+                          <span
+                            className="pointer-events-none absolute bottom-0 z-30 w-px -translate-x-1/2 bg-primary/90"
+                            style={{
+                              top: "45px",
+                              left: `calc(${GANTT_LABEL_WIDTH + GANTT_TRACK_GAP}px + (${ganttTimelineWidth}px * ${ganttTodayPosition / 100}))`,
+                            }}
+                          />
+                        ) : null}
+                        <div className="flex items-end gap-2">
+                          <p className="w-[260px] text-xs text-muted-foreground">
+                            {t.field.taskTitle}
+                          </p>
+                          <div
+                            className="relative h-12 shrink-0 border-b"
+                            style={{ width: `${ganttTimelineWidth}px` }}
+                          >
+                            {ganttTodayPosition !== null ? (
+                              <>
+                                <span
+                                  className="absolute top-0 z-30 -translate-x-1/2 whitespace-nowrap rounded-full border bg-background/95 px-2 py-0.5 text-[10px] font-medium text-primary shadow-sm"
+                                  style={{
+                                    left: `clamp(20px, ${ganttTodayPosition}%, calc(100% - 20px))`,
+                                  }}
+                                >
+                                  {text.ganttToday}
+                                </span>
+                                <div
+                                  className="absolute inset-y-0 z-30"
+                                  style={{ left: `${ganttTodayPosition}%` }}
+                                >
+                                  <span className="absolute top-4 -bottom-px left-1/2 w-px -translate-x-1/2 bg-primary/80" />
+                                  <span className="absolute top-4 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full border border-primary/70 bg-background" />
+                                </div>
+                              </>
+                            ) : null}
+                            {ganttTicks.map((tick, index) => (
+                              <div
+                                key={tick.key}
+                                className="absolute inset-y-0"
+                                style={{ left: `${tick.ratio * 100}%` }}
+                              >
+                                <span
+                                  className={`absolute top-0 text-[10px] text-muted-foreground whitespace-nowrap ${
+                                    index === 0
+                                      ? "left-0 translate-x-0"
+                                      : index === ganttTicks.length - 1
+                                        ? "right-0 translate-x-0"
+                                        : "left-1/2 -translate-x-1/2"
+                                  }`}
+                                  style={{ top: "24px" }}
+                                >
+                                  {tick.label}
+                                </span>
+                                <span className="absolute bottom-0 left-1/2 h-2 w-px -translate-x-1/2 bg-border/90" />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        {ganttTasks.length === 0 ? (
+                          <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                            {text.ganttEmpty}
+                          </div>
+                        ) : null}
+                        {ganttTasks.map((task) => {
+                          const start = new Date(`${task.startDate}T00:00:00`).getTime();
+                          const end = new Date(`${task.dueDate}T00:00:00`).getTime();
+                          const left =
+                            ((start - gantt.start.getTime()) / DAY_MS / gantt.totalDays) * 100;
+                          const width = ((end - start + DAY_MS) / DAY_MS / gantt.totalDays) * 100;
+                          const progress =
+                            task.estimateHours === 0
+                              ? 0
+                              : Math.min(
+                                  999,
+                                  Math.round((task.spentHours / task.estimateHours) * 100),
+                                );
+                          return (
+                            <div key={task.id} className="flex items-center gap-2">
+                              <div className="w-[260px] min-w-0">
+                                <p className="truncate text-sm">{task.title}</p>
+                                <p className="text-xs text-muted-foreground flex items-center gap-2">
+                                  <span>
+                                    {formatDate(task.startDate, locale)} -{" "}
+                                    {formatDate(task.dueDate, locale)}
+                                  </span>
+                                  <span
+                                    className={`${markerBase} border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300`}
+                                  >
+                                    {text.ganttProgress}: {progress}%
+                                  </span>
+                                </p>
+                              </div>
+                              <div
+                                className="relative h-7 shrink-0 overflow-hidden rounded-full border bg-muted"
+                                style={{ width: `${ganttTimelineWidth}px` }}
+                              >
+                                <div
+                                  className={`absolute top-1 z-10 h-5 rounded-full ${ganttTaskBarTone[task.status]}`}
+                                  title={`${task.title} (${formatDate(task.startDate, locale)} - ${formatDate(task.dueDate, locale)})`}
+                                  style={{
+                                    left: `${Math.max(0, left)}%`,
+                                    width: `${Math.max(3, width)}%`,
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.section>
+            ) : null}
+
+            {view === "projects" ? (
+              <motion.section
+                key="projects"
+                className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_1fr]"
+                {...pageTransition}
+              >
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FolderKanban className="h-4 w-4" />
+                      {t.section.projectManager}
                     </CardTitle>
-                    <CardDescription>{text.dailyCheckinDesc}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">{t.section.projectManager}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {text.projectQuickCreateHint}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => {
+                          setEditingProjectId(null);
+                          setProjectError("");
+                          setProjectForm({
+                            name: "",
+                            description: "",
+                            startDate: "2026-02-12",
+                            endDate: "2026-02-25",
+                          });
+                          setProjectDialogOpen(true);
+                        }}
+                      >
+                        <Plus className="h-4 w-4" />
+                        {t.action.addProject}
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className={`${markerBase} ${projectStatusTone.planning}`}>
+                        {t.status.planning}
+                      </span>
+                      <span className={`${markerBase} ${projectStatusTone.active}`}>
+                        {t.status.active}
+                      </span>
+                      <span className={`${markerBase} ${projectStatusTone.completed}`}>
+                        {t.status.completed}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart3 className="h-4 w-4" />
+                      {t.views.projects}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+                      {[
+                        {
+                          label: text.plannedHours,
+                          value: projectHourSummary.estimate,
+                          tone: "border-sky-500/30 text-sky-700 dark:text-sky-300",
+                        },
+                        {
+                          label: text.spentHours,
+                          value: projectHourSummary.spent,
+                          tone: "border-amber-500/30 text-amber-700 dark:text-amber-300",
+                        },
+                        {
+                          label: text.remainingHours,
+                          value: projectHourSummary.remaining,
+                          tone: "border-emerald-500/30 text-emerald-700 dark:text-emerald-300",
+                        },
+                        {
+                          label: text.overrunHours,
+                          value: projectHourSummary.overrun,
+                          tone: "border-rose-500/30 text-rose-700 dark:text-rose-300",
+                        },
+                        {
+                          label: text.utilizationRate,
+                          value: `${projectHourSummary.utilization}%`,
+                          tone: "border-violet-500/30 text-violet-700 dark:text-violet-300",
+                        },
+                      ].map((item) => (
+                        <div
+                          key={item.label}
+                          className={`rounded-md border px-2.5 py-2 ${item.tone}`}
+                        >
+                          <p className="text-[11px]">{item.label}</p>
+                          <p className="text-sm font-semibold">
+                            {typeof item.value === "number"
+                              ? `${item.value} ${t.units.hours}`
+                              : item.value}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    {projects.map((project, index) => (
+                      <motion.div
+                        key={project.id}
+                        layout
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.2, delay: index * 0.03 }}
+                        className="rounded-lg border p-3"
+                      >
+                        {(() => {
+                          const workload = projectWorkloadMap.get(project.id);
+                          const estimate = workload?.estimate ?? 0;
+                          const spent = workload?.spent ?? 0;
+                          const remaining = Math.max(0, estimate - spent);
+                          const utilization =
+                            estimate === 0 ? 0 : Math.round((spent / estimate) * 100);
+                          return (
+                            <>
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="text-sm font-medium">{project.name}</p>
+                                <div className="flex items-center gap-1.5">
+                                  <span
+                                    className={`${markerBase} ${projectStatusTone[project.status]}`}
+                                  >
+                                    {t.status[project.status]}
+                                  </span>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 gap-1 px-2"
+                                    onClick={() => openAiProjectSplitDialog(project.id)}
+                                  >
+                                    <Sparkles className="h-4 w-4" />
+                                    {text.splitProjectByAi}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-8 gap-1 px-2"
+                                    onClick={() => handleEditProject(project.id)}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                    {text.editProject}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-8 gap-1 px-2 text-destructive hover:text-destructive"
+                                    onClick={() => handleDeleteProject(project.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    {text.delete}
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                                <span>
+                                  {formatDate(project.startDate, locale)} -{" "}
+                                  {formatDate(project.endDate, locale)}
+                                </span>
+                                <span
+                                  className={`${markerBase} border-violet-500/40 bg-violet-500/15 text-violet-700 dark:text-violet-300`}
+                                >
+                                  {projectProgress(project.id, tasks)}%
+                                </span>
+                              </div>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {text.actualRange}:{" "}
+                                {project.actualStartDate
+                                  ? formatDate(project.actualStartDate, locale)
+                                  : text.notStarted}
+                                {" - "}
+                                {project.actualEndDate
+                                  ? formatDate(project.actualEndDate, locale)
+                                  : text.notFinished}
+                              </p>
+                              <div className="mt-2 grid grid-cols-1 gap-1 text-xs text-muted-foreground sm:grid-cols-3">
+                                <span>
+                                  {text.plannedHours}: {estimate} {t.units.hours}
+                                </span>
+                                <span>
+                                  {text.spentHours}: {spent} {t.units.hours}
+                                </span>
+                                <span>
+                                  {text.remainingHours}: {remaining} {t.units.hours}
+                                </span>
+                              </div>
+                              <div className="mt-2 h-1.5 rounded-full bg-muted">
+                                <div
+                                  className={`h-1.5 rounded-full ${utilization > 100 ? "bg-rose-500" : "bg-cyan-500"}`}
+                                  style={{ width: `${Math.max(4, Math.min(100, utilization))}%` }}
+                                />
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </motion.div>
+                    ))}
+                  </CardContent>
+                </Card>
+              </motion.section>
+            ) : null}
+
+            {view === "tasks" ? (
+              <motion.section
+                key="tasks"
+                className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden xl:grid-cols-[1.3fr_1fr]"
+                {...pageTransition}
+              >
+                <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
+                  <Card>
+                    <CardHeader className="space-y-3">
+                      <CardTitle className="flex items-center gap-2">
+                        <CalendarDays className="h-4 w-4" />
+                        {text.calendarPlanner}
+                      </CardTitle>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={calendarTarget === "start" ? "default" : "outline"}
+                          onClick={() => setCalendarTarget("start")}
+                        >
+                          {text.calendarStart}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={calendarTarget === "due" ? "default" : "outline"}
+                          onClick={() => setCalendarTarget("due")}
+                        >
+                          {text.calendarDue}
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          onClick={() => setCalendarCursor((prev) => addMonths(prev, -1))}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <p className="text-sm font-medium">
+                          {calendarCursor.toLocaleDateString(locale, {
+                            year: "numeric",
+                            month: "long",
+                          })}
+                        </p>
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          onClick={() => setCalendarCursor((prev) => addMonths(prev, 1))}
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-muted-foreground">
+                        {text.monthWeek.map((item) => (
+                          <span key={item}>{item}</span>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-7 gap-1" onMouseLeave={finishRangeSelection}>
+                        {monthGrid.map((day) => {
+                          const key = dateToKey(day);
+                          const isToday = key === todayKey;
+                          const isCurrentMonth = day.getMonth() === calendarCursor.getMonth();
+                          const isPicked =
+                            calendarTarget === "start"
+                              ? taskForm.startDate === key
+                              : taskForm.dueDate === key;
+                          const [rangeStart, rangeEnd] =
+                            dragRangeStart && dragRangeEnd
+                              ? normalizeDateRange(dragRangeStart, dragRangeEnd)
+                              : ["", ""];
+                          const isInDraftRange =
+                            rangeStart !== "" && key >= rangeStart && key <= rangeEnd;
+                          const [selectedStart, selectedEnd] =
+                            selectedRangeStart && selectedRangeEnd
+                              ? normalizeDateRange(selectedRangeStart, selectedRangeEnd)
+                              : ["", ""];
+                          const isInSelectedRange =
+                            selectedStart !== "" && key >= selectedStart && key <= selectedEnd;
+                          const isInspectingDay = calendarInspectDate === key;
+                          const dayTasks = taskCalendarMap.get(key) ?? [];
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              className={`min-h-16 rounded-md border p-1 text-left text-xs transition ${
+                                isInDraftRange
+                                  ? "border-blue-400 bg-blue-500/15"
+                                  : isInSelectedRange
+                                    ? "border-primary/70 bg-primary/15"
+                                    : isPicked
+                                      ? "border-primary bg-primary/10"
+                                      : isToday
+                                        ? "border-cyan-500/70 bg-cyan-500/10"
+                                        : isCurrentMonth
+                                          ? "border-border hover:bg-accent/40"
+                                          : "border-border/50 text-muted-foreground/60"
+                              } ${isInspectingDay ? "ring-1 ring-primary/60" : ""}`}
+                              onClick={(event: MouseEvent<HTMLButtonElement>) => {
+                                if (suppressCalendarClick) {
+                                  setSuppressCalendarClick(false);
+                                  return;
+                                }
+                                if (rangeMoved) {
+                                  setRangeMoved(false);
+                                  return;
+                                }
+                                if (event.shiftKey) {
+                                  setCalendarInspectDate(key);
+                                  handleRangeAnchorPick(key);
+                                  return;
+                                }
+                                setCalendarInspectDate(key);
+                                handleCalendarPick(day);
+                              }}
+                              onMouseDown={(event) => startRangeSelection(day, event)}
+                              onMouseEnter={() => updateRangeSelection(day)}
+                              onMouseUp={finishRangeSelection}
+                              onDoubleClick={() => openQuickCreateTask(day)}
+                            >
+                              <p className="mb-1 flex items-center justify-end gap-1 text-[11px]">
+                                {day.getDate()}
+                                {isToday ? (
+                                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-cyan-500" />
+                                ) : null}
+                              </p>
+                              <div className="space-y-1">
+                                {dayTasks.slice(0, 2).map((task) => (
+                                  <span
+                                    key={task.id}
+                                    role="button"
+                                    tabIndex={0}
+                                    className={`block cursor-pointer truncate rounded px-1 py-0.5 text-[10px] ${
+                                      task.status === "done"
+                                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                                        : task.status === "doing"
+                                          ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                                          : "bg-slate-500/15 text-slate-700 dark:text-slate-300"
+                                    }`}
+                                    onMouseDown={(event) => event.stopPropagation()}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setCalendarInspectDate(key);
+                                      handleEditTask(task.id);
+                                    }}
+                                    onContextMenu={(event) => {
+                                      event.stopPropagation();
+                                      openTaskContextMenu(event, task.id);
+                                    }}
+                                    onKeyDown={(event) => {
+                                      if (event.key === "Enter" || event.key === " ") {
+                                        event.preventDefault();
+                                        handleEditTask(task.id);
+                                      }
+                                    }}
+                                  >
+                                    {task.title}
+                                  </span>
+                                ))}
+                                {dayTasks.length > 2 ? (
+                                  <button
+                                    type="button"
+                                    className="text-[10px] text-primary hover:underline"
+                                    onMouseDown={(event) => event.stopPropagation()}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setCalendarInspectDate(key);
+                                    }}
+                                  >
+                                    {text.calendarViewAll} (+{dayTasks.length - 2})
+                                  </button>
+                                ) : null}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="rounded-md border bg-muted/20 p-2.5">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <p className="text-xs font-medium">
+                            {text.calendarDayTasks}: {formatDate(calendarInspectDate, locale)} (
+                            {calendarInspectTasks.length})
+                          </p>
+                        </div>
+                        <div className="max-h-36 space-y-1 overflow-y-auto pr-1">
+                          {calendarInspectTasks.length === 0 ? (
+                            <p className="text-xs text-muted-foreground">{text.calendarNoTask}</p>
+                          ) : (
+                            calendarInspectTasks.map((task) => (
+                              <button
+                                key={`${calendarInspectDate}-${task.id}`}
+                                type="button"
+                                className={`flex w-full items-center justify-between gap-2 rounded-md border px-2 py-1 text-left text-xs transition hover:bg-accent/40 ${
+                                  task.status === "done"
+                                    ? "border-emerald-500/30 bg-emerald-500/10"
+                                    : task.status === "doing"
+                                      ? "border-amber-500/30 bg-amber-500/10"
+                                      : "border-slate-500/30 bg-slate-500/10"
+                                }`}
+                                onClick={() => handleEditTask(task.id)}
+                                onContextMenu={(event) => openTaskContextMenu(event, task.id)}
+                              >
+                                <span className="truncate">{task.title}</span>
+                                <span className="shrink-0 text-muted-foreground">
+                                  {t.status[task.status]}
+                                </span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs text-muted-foreground">
+                          {text.calendarHint} · {text.quickCreateHint} · {text.quickCreateEsc}
+                        </p>
+                        {showRangeCreateAction && selectedRangeStart && selectedRangeEnd ? (
+                          <Button
+                            type="button"
+                            size="xs"
+                            className="h-7 gap-1 px-2.5"
+                            onClick={openTaskModalFromSelectedRange}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            {text.createFromRange}
+                          </Button>
+                        ) : null}
+                      </div>
+                      <Separator />
+                      <div className="flex items-center justify-between rounded-md border bg-muted/30 p-3">
+                        <p className="text-xs text-muted-foreground">{text.openTaskModal}</p>
+                        <Button
+                          type="button"
+                          className="gap-2"
+                          onClick={() => {
+                            if (!taskForm.projectId) {
+                              setTaskForm((previous) => ({
+                                ...previous,
+                                projectId: selectedProjectId ?? projects[0]?.id ?? "",
+                                parentTaskId: TASK_CREATE_DEFAULTS.parentTaskId,
+                              }));
+                            }
+                            setEditingTaskId(null);
+                            setTaskError("");
+                            setTaskDialogOpen(true);
+                          }}
+                        >
+                          <Plus className="h-4 w-4" />
+                          {t.action.addTask}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="min-h-0 flex flex-col gap-4">
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">{text.todayTasksPanel}</CardTitle>
+                      <CardDescription className="text-xs text-muted-foreground">
+                        {formatDate(todayKey, locale)} · {todayTasks.length}
+                      </CardDescription>
+                      <p className="text-xs text-muted-foreground">{text.rightClickHint}</p>
+                    </CardHeader>
+                    <CardContent className="modern-scroll max-h-56 space-y-2 overflow-y-auto">
+                      {todayTasks.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">{text.todayTasksEmpty}</p>
+                      ) : (
+                        todayTasks.map((task) => (
+                          <button
+                            key={`today-${task.id}`}
+                            type="button"
+                            className="flex w-full items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-left text-xs transition hover:bg-accent/40"
+                            onClick={() => handleEditTask(task.id)}
+                            onContextMenu={(event) => openTaskContextMenu(event, task.id)}
+                          >
+                            <span className="min-w-0">
+                              <span className="block truncate font-medium">{task.title}</span>
+                              <span className="mt-0.5 block text-muted-foreground">
+                                {formatDate(task.startDate, locale)} -{" "}
+                                {formatDate(task.dueDate, locale)}
+                              </span>
+                            </span>
+                            <span
+                              className={`${markerBase} ${taskStatusTone[task.status]} shrink-0`}
+                            >
+                              {t.status[task.status]}
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card className="flex min-h-0 flex-1 flex-col">
+                    <CardHeader>
+                      <CardTitle>{t.views.tasks}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="modern-scroll min-h-0 flex-1 space-y-3 overflow-y-auto">
+                      {taskHierarchy.map(({ task, depth, isLast, ancestorHasSibling }, index) => {
+                        const visualDepth = Math.min(depth, 6);
+                        const indentUnit = 18;
+                        const branchTop = 26;
+                        const currentGuideLeft =
+                          visualDepth > 0 ? (visualDepth - 1) * indentUnit + 8 : 0;
+                        return (
+                          <motion.div
+                            key={task.id}
+                            layout
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.2, delay: index * 0.02 }}
+                            className="relative"
+                            style={{ paddingLeft: `${visualDepth * indentUnit}px` }}
+                          >
+                            {Array.from({ length: visualDepth }).map((_, level) =>
+                              ancestorHasSibling[level] ? (
+                                <span
+                                  key={`${task.id}-guide-${level}`}
+                                  className="pointer-events-none absolute top-0 bottom-0 w-px bg-border/70"
+                                  style={{ left: `${level * indentUnit + 8}px` }}
+                                />
+                              ) : null,
+                            )}
+                            {visualDepth > 0 ? (
+                              <>
+                                <span
+                                  className="pointer-events-none absolute w-px bg-border/70"
+                                  style={{
+                                    left: `${currentGuideLeft}px`,
+                                    top: 0,
+                                    height: isLast ? `${branchTop}px` : "100%",
+                                  }}
+                                />
+                                <span
+                                  className="pointer-events-none absolute h-px bg-border/70"
+                                  style={{
+                                    left: `${currentGuideLeft}px`,
+                                    top: `${branchTop}px`,
+                                    width: `${Math.max(8, indentUnit - 6)}px`,
+                                  }}
+                                />
+                              </>
+                            ) : null}
+                            <div
+                              className="rounded-xl border bg-card/70 p-3 shadow-sm transition hover:shadow-md"
+                              onContextMenu={(event) => openTaskContextMenu(event, task.id)}
+                            >
+                              <div className="mb-2 flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-semibold">{task.title}</p>
+                                  <p className="mt-0.5 text-xs text-muted-foreground">
+                                    {text.plannedRange}: {formatDate(task.startDate, locale)} -{" "}
+                                    {formatDate(task.dueDate, locale)}
+                                  </p>
+                                  {task.parentTaskId && taskTitleMap.has(task.parentTaskId) ? (
+                                    <p className="mt-0.5 text-xs text-muted-foreground">
+                                      {text.parentTask}: {taskTitleMap.get(task.parentTaskId)}
+                                    </p>
+                                  ) : null}
+                                  <p className="mt-0.5 text-xs text-muted-foreground">
+                                    {text.actualRange}:{" "}
+                                    {task.actualStartDate
+                                      ? formatDateTime(task.actualStartDate, locale)
+                                      : text.notStarted}
+                                    {" - "}
+                                    {task.actualEndDate
+                                      ? formatDateTime(task.actualEndDate, locale)
+                                      : text.notFinished}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon-xs"
+                                    className="rounded-full"
+                                    onClick={() => openAiSplitDialog(task)}
+                                  >
+                                    <Sparkles className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon-xs"
+                                    className="rounded-full"
+                                    onClick={() => handleEditTask(task.id)}
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon-xs"
+                                    className="rounded-full text-destructive hover:text-destructive"
+                                    onClick={() => handleDeleteTask(task.id)}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-2">
+                                {task.parentTaskId ? (
+                                  <span
+                                    className={`${markerBase} border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300`}
+                                  >
+                                    {text.subtask}
+                                  </span>
+                                ) : null}
+                                <span className={`${markerBase} ${taskStatusTone[task.status]}`}>
+                                  {t.status[task.status]}
+                                </span>
+                                <span className={`${markerBase} ${priorityTone[task.priority]}`}>
+                                  {t.priority[task.priority]}
+                                </span>
+                                <span
+                                  className={`${markerBase} ${
+                                    task.spentHours > task.estimateHours
+                                      ? "border-red-500/40 bg-red-500/15 text-red-700 dark:text-red-300"
+                                      : task.spentHours >= task.estimateHours * 0.8
+                                        ? "border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                                        : "border-teal-500/40 bg-teal-500/15 text-teal-700 dark:text-teal-300"
+                                  }`}
+                                >
+                                  {task.spentHours}/{task.estimateHours} {t.units.hours}
+                                </span>
+                              </div>
+                              <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-muted/20 p-2">
+                                {TASK_STATUSES.map((status) => (
+                                  <Button
+                                    key={status}
+                                    type="button"
+                                    size="xs"
+                                    variant={task.status === status ? "default" : "outline"}
+                                    className="h-7"
+                                    onClick={() => handleTaskStatusChange(task, status)}
+                                    disabled={task.status === status}
+                                  >
+                                    {t.status[status]}
+                                  </Button>
+                                ))}
+                              </div>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </CardContent>
+                  </Card>
+                </div>
+              </motion.section>
+            ) : null}
+
+            {view === "notes" ? (
+              <motion.section
+                key="notes"
+                className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_1fr]"
+                {...pageTransition}
+              >
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <BookText className="h-4 w-4" />
+                      {t.section.noteManager}
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <form className="space-y-3" onSubmit={saveDailyCheckin}>
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label>{text.mood}</Label>
-                          <Select
-                            value={`${dailyCheckinForm.mood}`}
-                            onValueChange={(value) => {
-                              setDailyCheckinForm((previous) => ({ ...previous, mood: Number(value) as 1 | 2 | 3 | 4 | 5 }));
-                              setDailyCheckinSaved(false);
-                            }}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {[1, 2, 3, 4, 5].map((level) => (
-                                <SelectItem key={`mood-${level}`} value={`${level}`}>
-                                  <div className="flex items-center gap-2">
-                                    <span className={`h-2.5 w-2.5 rounded-full ${moodColors[level as 1 | 2 | 3 | 4 | 5]}`} />
-                                    {text.moodOptions[level - 1]}
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>{text.energy}</Label>
-                          <Select
-                            value={`${dailyCheckinForm.energy}`}
-                            onValueChange={(value) => {
-                              setDailyCheckinForm((previous) => ({ ...previous, energy: Number(value) as 1 | 2 | 3 | 4 | 5 }));
-                              setDailyCheckinSaved(false);
-                            }}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {[1, 2, 3, 4, 5].map((level) => (
-                                <SelectItem key={`energy-${level}`} value={`${level}`}>
-                                  <div className="flex items-center gap-2">
-                                    <span className={`h-2.5 w-2.5 rounded-full ${energyColors[level as 1 | 2 | 3 | 4 | 5]}`} />
-                                    {text.energyOptions[level - 1]}
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                    <form className="space-y-3" onSubmit={addNote}>
+                      <div className="space-y-2">
+                        <Label>{t.field.project}</Label>
+                        <Select
+                          value={noteForm.projectId || "__none__"}
+                          onValueChange={(value) =>
+                            setNoteForm((previous) => ({
+                              ...previous,
+                              projectId: value === "__none__" ? "" : value,
+                            }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">-</SelectItem>
+                            {projects.map((project) => (
+                              <SelectItem key={project.id} value={project.id}>
+                                {project.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label>{text.focusHoursToday}</Label>
+                        <Label>{t.field.noteTitle}</Label>
                         <Input
-                          type="number"
-                          min={0}
-                          max={24}
-                          step={0.5}
-                          value={dailyCheckinForm.focusHours}
+                          value={noteForm.title}
                           onChange={(event) => {
-                            const nextFocusHours = Math.max(0, Number(event.currentTarget?.value ?? 0) || 0);
-                            setDailyCheckinForm((previous) => ({ ...previous, focusHours: nextFocusHours }));
-                            setDailyCheckinSaved(false);
+                            const { value } = event.currentTarget;
+                            setNoteForm((previous) => ({ ...previous, title: value }));
                           }}
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>{text.reflection}</Label>
+                        <Label>{t.field.noteContent}</Label>
                         <Textarea
-                          value={dailyCheckinForm.reflection}
+                          rows={5}
+                          value={noteForm.content}
                           onChange={(event) => {
-                            const nextReflection = event.currentTarget?.value ?? "";
-                            setDailyCheckinForm((previous) => ({ ...previous, reflection: nextReflection }));
-                            setDailyCheckinSaved(false);
+                            const { value } = event.currentTarget;
+                            setNoteForm((previous) => ({ ...previous, content: value }));
                           }}
-                          placeholder={locale === "zh-CN" ? "例如：今天最有效的工作方式是什么？" : "What worked best for you today?"}
                         />
                       </div>
-                      {dailyCheckinError ? <p className="text-sm text-destructive">{dailyCheckinError}</p> : null}
-                      <div className="flex items-center justify-end gap-2">
-                        {dailyCheckinSaved ? <span className="text-xs text-emerald-600">{text.checkinSaved}</span> : null}
-                        <Button type="submit">{text.saveCheckin}</Button>
-                      </div>
+                      {noteError ? <p className="text-sm text-destructive">{noteError}</p> : null}
+                      <Button type="submit">{t.action.addNote}</Button>
                     </form>
                   </CardContent>
                 </Card>
 
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Brain className="h-4 w-4" />
-                      {text.personalInsights}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div className="rounded-md border p-2">
-                        <div className="flex items-center gap-1.5">
-                          <Flame className="h-3.5 w-3.5 text-orange-500" />
-                          <p className="text-xs text-muted-foreground">{text.checkinStreak}</p>
-                        </div>
-                        <p className="text-lg font-semibold">{personalSummary.streak} {text.dayUnit}</p>
-                      </div>
-                      <div className="rounded-md border p-2">
-                        <div className="flex items-center gap-1.5">
-                          <Battery className="h-3.5 w-3.5 text-blue-500" />
-                          <p className="text-xs text-muted-foreground">{text.sevenDayFocus}</p>
-                        </div>
-                        <p className="text-lg font-semibold">{personalSummary.focusHours}h</p>
-                      </div>
-                      <div className="rounded-md border p-2">
-                        <div className="flex items-center gap-1.5">
-                          <Smile className="h-3.5 w-3.5 text-emerald-500" />
-                          <p className="text-xs text-muted-foreground">{text.sevenDayMood}</p>
-                        </div>
-                        <p className="text-lg font-semibold">{personalSummary.moodAvg || "-"}</p>
-                      </div>
-                      <div className="rounded-md border p-2">
-                        <div className="flex items-center gap-1.5">
-                          <Zap className="h-3.5 w-3.5 text-violet-500" />
-                          <p className="text-xs text-muted-foreground">{text.sevenDayEnergy}</p>
-                        </div>
-                        <p className="text-lg font-semibold">{personalSummary.energyAvg || "-"}</p>
-                      </div>
-                    </div>
-                    <Separator />
-                    <div className="space-y-2">
-                      <p className="text-xs font-medium text-muted-foreground">{text.latestReflection}</p>
-                      {recentCheckins.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">{text.noCheckinYet}</p>
-                      ) : (
-                        recentCheckins.slice(0, 3).map((item) => (
-                          <div key={item.id} className="rounded-md border p-2">
-                            <p className="text-xs text-muted-foreground">{formatDate(item.date, locale)}</p>
-                            <p className="text-sm">{item.reflection || "-"}</p>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <BarChart3 className="h-4 w-4" />
-                      {text.taskStatusChart}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {taskStatusData.items.map((item) => {
-                      const width = Math.max(6, Math.round((item.value / taskStatusData.total) * 100));
-                      return (
-                        <div key={item.key} className="space-y-1">
-                          <div className="flex items-center justify-between text-xs">
-                            <span>{item.label}</span>
-                            <span className="text-muted-foreground">{item.value}</span>
-                          </div>
-                          <div className="h-2 rounded-full bg-muted">
-                            <motion.div
-                              className={`h-2 rounded-full ${item.className}`}
-                              initial={{ width: 0 }}
-                              animate={{ width: `${width}%` }}
-                              transition={{ duration: 0.35, ease: "easeOut" }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <PieChart className="h-4 w-4" />
-                      {text.priorityChart}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center gap-4">
-                      <motion.div
-                        className="h-24 w-24 rounded-full border"
-                        style={{ backgroundImage: priorityData.gradient }}
-                        initial={{ rotate: -50, opacity: 0.8 }}
-                        animate={{ rotate: 0, opacity: 1 }}
-                        transition={{ duration: 0.35, ease: "easeOut" }}
-                      />
-                      <div className="space-y-1 text-xs">
-                        <p><span className="mr-1 inline-block h-2 w-2 rounded-full bg-lime-500" />{t.priority.low}: {priorityData.low}</p>
-                        <p><span className="mr-1 inline-block h-2 w-2 rounded-full bg-orange-500" />{t.priority.medium}: {priorityData.medium}</p>
-                        <p><span className="mr-1 inline-block h-2 w-2 rounded-full bg-rose-500" />{t.priority.high}: {priorityData.high}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <BarChart3 className="h-4 w-4" />
-                      {text.workloadChart}
-                    </CardTitle>
+                    <CardTitle>{t.views.notes}</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
-                    {projectWorkloadData.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">{text.workloadEmpty}</p>
-                    ) : (
-                      projectWorkloadData.map((item) => (
-                        <div key={item.id} className="space-y-1">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="truncate pr-2">{item.name}</span>
-                            <span className="text-muted-foreground">
-                              {item.spent}/{item.estimate || 0}h
-                            </span>
+                    {notes.map((note, index) => (
+                      <motion.div
+                        key={note.id}
+                        layout
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.18, delay: index * 0.02 }}
+                        className="rounded-lg border p-3"
+                      >
+                        <p className="text-sm font-medium">{note.title}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{note.content}</p>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {new Date(note.updatedAt).toLocaleString(locale)}
+                        </p>
+                      </motion.div>
+                    ))}
+                  </CardContent>
+                </Card>
+              </motion.section>
+            ) : null}
+
+            {view === "pomodoro" ? <PomodoroPage /> : null}
+
+            {view === "chat" ? <ChatPage /> : null}
+
+            {view === "settings" ? (
+              <motion.section
+                key="settings"
+                className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_1fr]"
+                initial={{ opacity: 0, x: 50, y: -30, scale: 0.95 }}
+                animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
+                exit={{ opacity: 0, x: 50, y: -30, scale: 0.95 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+              >
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Settings2 className="h-4 w-4" />
+                      {t.section.settings}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>{t.settings.language}</Label>
+                        <Select
+                          value={locale}
+                          onValueChange={(value) => setLocale(value as "zh-CN" | "en-US")}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="zh-CN">中文</SelectItem>
+                            <SelectItem value="en-US">English</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t.settings.theme}</Label>
+                        <Select
+                          value={settings.theme}
+                          onValueChange={(value) => setTheme(value as "system" | "light" | "dark")}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="system">{t.settings.system}</SelectItem>
+                            <SelectItem value="light">{t.settings.light}</SelectItem>
+                            <SelectItem value="dark">{t.settings.dark}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">{t.settings.notifications}</p>
+                          <p className="text-xs text-muted-foreground">{text.notificationsHelp}</p>
+                        </div>
+                        <Switch
+                          checked={settings.notificationsEnabled}
+                          onCheckedChange={(checked) =>
+                            updateSettings({ notificationsEnabled: checked })
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">{text.autoTrackWork}</p>
+                          <p className="text-xs text-muted-foreground">{text.autoTrackWorkHelp}</p>
+                        </div>
+                        <Switch
+                          checked={autoTrackWorkOnDone}
+                          onCheckedChange={(checked) =>
+                            updateSettings({ autoTrackWorkOnDone: checked })
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">{t.settings.privacy}</p>
+                          <p className="text-xs text-muted-foreground">{text.privacyHelp}</p>
+                        </div>
+                        <Switch
+                          checked={settings.privacyMode}
+                          onCheckedChange={(checked) => updateSettings({ privacyMode: checked })}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">{t.settings.telemetry}</p>
+                          <p className="text-xs text-muted-foreground">{text.telemetryHelp}</p>
+                        </div>
+                        <Switch
+                          checked={settings.telemetryEnabled}
+                          onCheckedChange={(checked) =>
+                            updateSettings({ telemetryEnabled: checked })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-3 rounded-lg border p-3">
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">{text.windowSize}</p>
+                          <p className="text-xs text-muted-foreground">{text.windowSizeDesc}</p>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                          <div className="space-y-2">
+                            <Label>{text.windowPreset}</Label>
+                            <Select
+                              value={settings.windowSizePreset}
+                              onValueChange={(value) => {
+                                const preset = value as WindowSizePreset;
+                                if (preset === "custom") {
+                                  updateSettings({ windowSizePreset: "custom" });
+                                  return;
+                                }
+                                const next = WINDOW_PRESETS[preset];
+                                updateSettings({
+                                  windowSizePreset: preset,
+                                  windowWidth: next.width,
+                                  windowHeight: next.height,
+                                });
+                                void applyWindowSize(next.width, next.height);
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="small">{text.windowSmall}</SelectItem>
+                                <SelectItem value="medium">{text.windowMedium}</SelectItem>
+                                <SelectItem value="large">{text.windowLarge}</SelectItem>
+                                <SelectItem value="custom">{text.windowCustom}</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
-                          <div className="h-2 rounded-full bg-muted">
-                            <motion.div
-                              className={`h-2 rounded-full ${item.ratio > 100 ? "bg-red-500" : "bg-cyan-500"}`}
-                              initial={{ width: 0 }}
-                              animate={{ width: `${Math.max(4, Math.min(100, item.ratio))}%` }}
-                              transition={{ duration: 0.35, ease: "easeOut" }}
+                          <div className="space-y-2">
+                            <Label>{text.windowWidth}</Label>
+                            <Input
+                              type="number"
+                              min={900}
+                              max={3840}
+                              value={settings.windowWidth}
+                              disabled={settings.windowSizePreset !== "custom"}
+                              onChange={(event) => {
+                                updateSettings({
+                                  windowSizePreset: "custom",
+                                  windowWidth: Math.max(
+                                    900,
+                                    Number(event.currentTarget.value) || 900,
+                                  ),
+                                });
+                              }}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>{text.windowHeight}</Label>
+                            <Input
+                              type="number"
+                              min={600}
+                              max={2160}
+                              value={settings.windowHeight}
+                              disabled={settings.windowSizePreset !== "custom"}
+                              onChange={(event) => {
+                                updateSettings({
+                                  windowSizePreset: "custom",
+                                  windowHeight: Math.max(
+                                    600,
+                                    Number(event.currentTarget.value) || 600,
+                                  ),
+                                });
+                              }}
                             />
                           </div>
                         </div>
-                      ))
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-
-              <Card>
-                <CardHeader>
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <CardTitle>{t.section.gantt}</CardTitle>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Label className="text-xs text-muted-foreground">{text.ganttZoom}</Label>
-                      <Select value={ganttZoom} onValueChange={(value) => setGanttZoom(value as "compact" | "comfortable" | "detailed")}>
-                        <SelectTrigger className="h-8 w-[128px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="compact">{text.ganttCompact}</SelectItem>
-                          <SelectItem value="comfortable">{text.ganttComfortable}</SelectItem>
-                          <SelectItem value="detailed">{text.ganttDetailed}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs text-muted-foreground">{text.ganttFilter}</span>
-                    <Button size="sm" variant={ganttStatusFilter === "all" ? "default" : "outline"} onClick={() => setGanttStatusFilter("all")}>
-                      {text.ganttAll}
-                    </Button>
-                    <Button size="sm" variant={ganttStatusFilter === "todo" ? "default" : "outline"} onClick={() => setGanttStatusFilter("todo")}>
-                      {t.status.todo}
-                    </Button>
-                    <Button size="sm" variant={ganttStatusFilter === "doing" ? "default" : "outline"} onClick={() => setGanttStatusFilter("doing")}>
-                      {t.status.doing}
-                    </Button>
-                    <Button size="sm" variant={ganttStatusFilter === "done" ? "default" : "outline"} onClick={() => setGanttStatusFilter("done")}>
-                      {t.status.done}
-                    </Button>
-                    <div className="ml-auto flex items-center gap-3 text-[11px] text-muted-foreground">
-                      <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-slate-400" />{t.status.todo}</span>
-                      <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-500" />{t.status.doing}</span>
-                      <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" />{t.status.done}</span>
-                    </div>
-                  </div>
-                  <div className="overflow-x-auto pb-1">
-                    <div
-                      className="relative space-y-2"
-                      style={{ width: `${ganttTimelineWidth + 280}px`, minWidth: `${ganttTimelineWidth + 280}px` }}
-                    >
-                      {ganttTodayPosition !== null ? (
-                        <span
-                          className="pointer-events-none absolute bottom-0 z-30 w-px -translate-x-1/2 bg-primary/90"
-                          style={{
-                            top: "45px",
-                            left: `calc(${GANTT_LABEL_WIDTH + GANTT_TRACK_GAP}px + (${ganttTimelineWidth}px * ${ganttTodayPosition / 100}))`,
-                          }}
-                        />
-                      ) : null}
-                      <div className="flex items-end gap-2">
-                        <p className="w-[260px] text-xs text-muted-foreground">{t.field.taskTitle}</p>
-                        <div className="relative h-12 shrink-0 border-b" style={{ width: `${ganttTimelineWidth}px` }}>
-                          {ganttTodayPosition !== null ? (
-                            <>
-                              <span
-                                className="absolute top-0 z-30 -translate-x-1/2 whitespace-nowrap rounded-full border bg-background/95 px-2 py-0.5 text-[10px] font-medium text-primary shadow-sm"
-                                style={{ left: `clamp(20px, ${ganttTodayPosition}%, calc(100% - 20px))` }}
-                              >
-                                {text.ganttToday}
-                              </span>
-                              <div className="absolute inset-y-0 z-30" style={{ left: `${ganttTodayPosition}%` }}>
-                                <span className="absolute top-4 -bottom-px left-1/2 w-px -translate-x-1/2 bg-primary/80" />
-                                <span className="absolute top-4 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full border border-primary/70 bg-background" />
-                              </div>
-                            </>
-                          ) : null}
-                          {ganttTicks.map((tick, index) => (
-                            <div key={tick.key} className="absolute inset-y-0" style={{ left: `${tick.ratio * 100}%` }}>
-                              <span
-                                className={`absolute top-0 text-[10px] text-muted-foreground whitespace-nowrap ${
-                                  index === 0
-                                    ? "left-0 translate-x-0"
-                                    : index === ganttTicks.length - 1
-                                      ? "right-0 translate-x-0"
-                                      : "left-1/2 -translate-x-1/2"
-                                }`}
-                                style={{ top: "24px" }}
-                              >
-                                {tick.label}
-                              </span>
-                              <span className="absolute bottom-0 left-1/2 h-2 w-px -translate-x-1/2 bg-border/90" />
-                            </div>
-                          ))}
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs text-muted-foreground">
+                            {isTauriWindowApiAvailable
+                              ? `${settings.windowWidth} x ${settings.windowHeight}`
+                              : text.windowDesktopOnly}
+                          </p>
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={!isTauriWindowApiAvailable}
+                            onClick={() => {
+                              const width = Math.max(900, Number(settings.windowWidth) || 1280);
+                              const height = Math.max(600, Number(settings.windowHeight) || 800);
+                              updateSettings({
+                                windowSizePreset: "custom",
+                                windowWidth: width,
+                                windowHeight: height,
+                              });
+                              void applyWindowSize(width, height);
+                            }}
+                          >
+                            {text.applyWindowSize}
+                          </Button>
                         </div>
                       </div>
-                      {ganttTasks.length === 0 ? (
-                        <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">{text.ganttEmpty}</div>
-                      ) : null}
-                      {ganttTasks.map((task) => {
-                        const start = new Date(`${task.startDate}T00:00:00`).getTime();
-                        const end = new Date(`${task.dueDate}T00:00:00`).getTime();
-                        const left = ((start - gantt.start.getTime()) / DAY_MS / gantt.totalDays) * 100;
-                        const width = ((end - start + DAY_MS) / DAY_MS / gantt.totalDays) * 100;
-                        const progress = task.estimateHours === 0 ? 0 : Math.min(999, Math.round((task.spentHours / task.estimateHours) * 100));
-                        return (
-                          <div key={task.id} className="flex items-center gap-2">
-                            <div className="w-[260px] min-w-0">
-                              <p className="truncate text-sm">{task.title}</p>
-                              <p className="text-xs text-muted-foreground flex items-center gap-2">
-                                <span>{formatDate(task.startDate, locale)} - {formatDate(task.dueDate, locale)}</span>
-                                <span className={`${markerBase} border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300`}>
-                                  {text.ganttProgress}: {progress}%
-                                </span>
-                              </p>
-                            </div>
-                            <div className="relative h-7 shrink-0 overflow-hidden rounded-full border bg-muted" style={{ width: `${ganttTimelineWidth}px` }}>
-                              <div
-                                className={`absolute top-1 z-10 h-5 rounded-full ${ganttTaskBarTone[task.status]}`}
-                                title={`${task.title} (${formatDate(task.startDate, locale)} - ${formatDate(task.dueDate, locale)})`}
-                                style={{ left: `${Math.max(0, left)}%`, width: `${Math.max(3, width)}%` }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
                     </div>
+                  </CardContent>
+                </Card>
+
+                <div className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>{t.settings.account}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="space-y-2">
+                        <Label>{t.field.name}</Label>
+                        <Input
+                          value={settings.accountName}
+                          onChange={(event) =>
+                            updateSettings({ accountName: event.currentTarget.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t.field.email}</Label>
+                        <Input
+                          type="email"
+                          value={settings.accountEmail}
+                          onChange={(event) =>
+                            updateSettings({ accountEmail: event.currentTarget.value })
+                          }
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Bell className="h-4 w-4" />
+                        {t.section.cache}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="space-y-2">
+                        <Label>{t.settings.cacheRetention}</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={365}
+                          value={settings.cacheRetentionDays}
+                          onChange={(event) =>
+                            updateSettings({
+                              cacheRetentionDays: Number(event.currentTarget.value) || 1,
+                            })
+                          }
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {t.settings.cacheLastCleaned}:{" "}
+                        {cacheClearedAt ? new Date(cacheClearedAt).toLocaleString(locale) : "-"}
+                      </p>
+                      <Button variant="outline" className="w-full gap-2" onClick={clearCache}>
+                        <Trash2 className="h-4 w-4" />
+                        {t.action.clearCache}
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <HeartPulse className="h-4 w-4" />
+                        {t.sidebar.about}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">{t.sidebar.version}</span>
+                        <span className="text-sm font-medium">0.1.0</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">{t.sidebar.developer}</span>
+                        <span className="text-sm font-medium">Plan Manager Team</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm text-muted-foreground">{text.githubRepo}</span>
+                        <a
+                          href={GITHUB_REPO_URL}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                        >
+                          <Github className="h-3.5 w-3.5" />
+                          neko-sys/plan-manager
+                        </a>
+                      </div>
+                      <Separator />
+                      <div className="text-center text-xs text-muted-foreground">
+                        <p className="font-medium">{t.appTitle}</p>
+                        <p className="mt-1">{t.appSubtitle}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </motion.section>
+            ) : null}
+          </AnimatePresence>
+        </main>
+      </div>
+      {taskContextMenu ? (
+        <div
+          ref={taskContextMenuRef}
+          className="fixed z-50 min-w-[168px] rounded-md border bg-background p-1 shadow-lg"
+          style={{ left: `${taskContextMenu.x}px`, top: `${taskContextMenu.y}px` }}
+        >
+          <button
+            type="button"
+            className="flex w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent/50"
+            onClick={() => openTaskDetail(taskContextMenu.taskId)}
+          >
+            {text.viewDetails}
+          </button>
+          <button
+            type="button"
+            className="flex w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent/50"
+            onClick={() => {
+              handleEditTask(taskContextMenu.taskId);
+              setTaskContextMenu(null);
+            }}
+          >
+            {text.editTask}
+          </button>
+          <button
+            type="button"
+            className="flex w-full rounded-sm px-2 py-1.5 text-left text-sm text-destructive hover:bg-accent/50"
+            onClick={() => {
+              handleDeleteTask(taskContextMenu.taskId);
+              setTaskContextMenu(null);
+            }}
+          >
+            {text.deleteTask}
+          </button>
+        </div>
+      ) : null}
+      <AnimatePresence>
+        {taskDetailTaskId && taskDetailTarget ? (
+          <motion.div
+            className="absolute inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 18, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="w-full max-w-lg"
+            >
+              <Card className="w-full">
+                <CardHeader>
+                  <CardTitle>{text.taskDetailsTitle}</CardTitle>
+                  <CardDescription>{taskDetailTarget.title}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-muted-foreground">{t.field.project}</span>
+                    <span className="font-medium">
+                      {projectNameMap.get(taskDetailTarget.projectId) ?? "-"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-muted-foreground">{t.field.status}</span>
+                    <span className={`${markerBase} ${taskStatusTone[taskDetailTarget.status]}`}>
+                      {t.status[taskDetailTarget.status]}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-muted-foreground">{t.field.priority}</span>
+                    <span className={`${markerBase} ${priorityTone[taskDetailTarget.priority]}`}>
+                      {t.priority[taskDetailTarget.priority]}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-muted-foreground">{text.plannedRange}</span>
+                    <span>
+                      {formatDate(taskDetailTarget.startDate, locale)} -{" "}
+                      {formatDate(taskDetailTarget.dueDate, locale)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-muted-foreground">{text.actualRange}</span>
+                    <span>
+                      {taskDetailTarget.actualStartDate
+                        ? formatDateTime(taskDetailTarget.actualStartDate, locale)
+                        : text.notStarted}
+                      {" - "}
+                      {taskDetailTarget.actualEndDate
+                        ? formatDateTime(taskDetailTarget.actualEndDate, locale)
+                        : text.notFinished}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-muted-foreground">{text.spentHours}</span>
+                    <span>
+                      {taskDetailTarget.spentHours}/{taskDetailTarget.estimateHours} {t.units.hours}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-muted-foreground">{text.createdAtLabel}</span>
+                    <span>{formatDateTime(taskDetailTarget.createdAt, locale)}</span>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setTaskDetailTaskId(null)}
+                    >
+                      {text.cancel}
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        handleEditTask(taskDetailTaskId);
+                        setTaskDetailTaskId(null);
+                      }}
+                    >
+                      {text.editTask}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
-            </motion.section>
-          ) : null}
-
-          {view === "projects" ? (
-            <motion.section key="projects" className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_1fr]" {...pageTransition}>
-              <Card>
+            </motion.div>
+          </motion.div>
+        ) : null}
+        {projectDialogOpen ? (
+          <motion.div
+            className="absolute inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 18, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="w-full max-w-2xl"
+            >
+              <Card className="w-full max-w-2xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <FolderKanban className="h-4 w-4" />
-                    {t.section.projectManager}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">{t.section.projectManager}</p>
-                      <p className="text-xs text-muted-foreground">{text.projectQuickCreateHint}</p>
-                    </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => {
-                        setEditingProjectId(null);
-                        setProjectError("");
-                        setProjectForm({
-                          name: "",
-                          description: "",
-                          startDate: "2026-02-12",
-                          endDate: "2026-02-25",
-                        });
-                        setProjectDialogOpen(true);
-                      }}
-                    >
-                      <Plus className="h-4 w-4" />
-                      {t.action.addProject}
-                    </Button>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className={`${markerBase} ${projectStatusTone.planning}`}>{t.status.planning}</span>
-                    <span className={`${markerBase} ${projectStatusTone.active}`}>{t.status.active}</span>
-                    <span className={`${markerBase} ${projectStatusTone.completed}`}>{t.status.completed}</span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart3 className="h-4 w-4" />
-                    {t.views.projects}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
-                    {[
-                      { label: text.plannedHours, value: projectHourSummary.estimate, tone: "border-sky-500/30 text-sky-700 dark:text-sky-300" },
-                      { label: text.spentHours, value: projectHourSummary.spent, tone: "border-amber-500/30 text-amber-700 dark:text-amber-300" },
-                      { label: text.remainingHours, value: projectHourSummary.remaining, tone: "border-emerald-500/30 text-emerald-700 dark:text-emerald-300" },
-                      { label: text.overrunHours, value: projectHourSummary.overrun, tone: "border-rose-500/30 text-rose-700 dark:text-rose-300" },
-                      { label: text.utilizationRate, value: `${projectHourSummary.utilization}%`, tone: "border-violet-500/30 text-violet-700 dark:text-violet-300" },
-                    ].map((item) => (
-                      <div key={item.label} className={`rounded-md border px-2.5 py-2 ${item.tone}`}>
-                        <p className="text-[11px]">{item.label}</p>
-                        <p className="text-sm font-semibold">
-                          {typeof item.value === "number" ? `${item.value} ${t.units.hours}` : item.value}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                  {projects.map((project, index) => (
-                    <motion.div
-                      key={project.id}
-                      layout
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.2, delay: index * 0.03 }}
-                      className="rounded-lg border p-3"
-                    >
-                      {(() => {
-                        const workload = projectWorkloadMap.get(project.id);
-                        const estimate = workload?.estimate ?? 0;
-                        const spent = workload?.spent ?? 0;
-                        const remaining = Math.max(0, estimate - spent);
-                        const utilization = estimate === 0 ? 0 : Math.round((spent / estimate) * 100);
-                        return (
-                          <>
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-medium">{project.name}</p>
-                        <div className="flex items-center gap-1.5">
-                          <span className={`${markerBase} ${projectStatusTone[project.status]}`}>{t.status[project.status]}</span>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-8 gap-1 px-2"
-                            onClick={() => openAiProjectSplitDialog(project.id)}
-                          >
-                            <Sparkles className="h-4 w-4" />
-                            {text.splitProjectByAi}
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 gap-1 px-2"
-                            onClick={() => handleEditProject(project.id)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                            {text.editProject}
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 gap-1 px-2 text-destructive hover:text-destructive"
-                            onClick={() => handleDeleteProject(project.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            {text.delete}
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                        <span>{formatDate(project.startDate, locale)} - {formatDate(project.endDate, locale)}</span>
-                        <span className={`${markerBase} border-violet-500/40 bg-violet-500/15 text-violet-700 dark:text-violet-300`}>
-                          {projectProgress(project.id, tasks)}%
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {text.actualRange}:{" "}
-                        {project.actualStartDate ? formatDate(project.actualStartDate, locale) : text.notStarted}
-                        {" - "}
-                        {project.actualEndDate ? formatDate(project.actualEndDate, locale) : text.notFinished}
-                      </p>
-                      <div className="mt-2 grid grid-cols-1 gap-1 text-xs text-muted-foreground sm:grid-cols-3">
-                        <span>{text.plannedHours}: {estimate} {t.units.hours}</span>
-                        <span>{text.spentHours}: {spent} {t.units.hours}</span>
-                        <span>{text.remainingHours}: {remaining} {t.units.hours}</span>
-                      </div>
-                      <div className="mt-2 h-1.5 rounded-full bg-muted">
-                        <div
-                          className={`h-1.5 rounded-full ${utilization > 100 ? "bg-rose-500" : "bg-cyan-500"}`}
-                          style={{ width: `${Math.max(4, Math.min(100, utilization))}%` }}
-                        />
-                      </div>
-                          </>
-                        );
-                      })()}
-                    </motion.div>
-                  ))}
-                </CardContent>
-              </Card>
-            </motion.section>
-          ) : null}
-
-          {view === "tasks" ? (
-            <motion.section key="tasks" className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden xl:grid-cols-[1.3fr_1fr]" {...pageTransition}>
-              <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
-                <Card>
-                  <CardHeader className="space-y-3">
-                    <CardTitle className="flex items-center gap-2">
-                      <CalendarDays className="h-4 w-4" />
-                      {text.calendarPlanner}
-                    </CardTitle>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button type="button" size="sm" variant={calendarTarget === "start" ? "default" : "outline"} onClick={() => setCalendarTarget("start")}>
-                        {text.calendarStart}
-                      </Button>
-                      <Button type="button" size="sm" variant={calendarTarget === "due" ? "default" : "outline"} onClick={() => setCalendarTarget("due")}>
-                        {text.calendarDue}
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Button type="button" size="icon-sm" variant="ghost" onClick={() => setCalendarCursor((prev) => addMonths(prev, -1))}>
-                        <ChevronLeft className="h-4 w-4" />
-                      </Button>
-                      <p className="text-sm font-medium">
-                        {calendarCursor.toLocaleDateString(locale, { year: "numeric", month: "long" })}
-                      </p>
-                      <Button type="button" size="icon-sm" variant="ghost" onClick={() => setCalendarCursor((prev) => addMonths(prev, 1))}>
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-muted-foreground">
-                      {text.monthWeek.map((item) => (
-                        <span key={item}>{item}</span>
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-7 gap-1" onMouseLeave={finishRangeSelection}>
-                      {monthGrid.map((day) => {
-                        const key = dateToKey(day);
-                        const isToday = key === todayKey;
-                        const isCurrentMonth = day.getMonth() === calendarCursor.getMonth();
-                        const isPicked = calendarTarget === "start" ? taskForm.startDate === key : taskForm.dueDate === key;
-                        const [rangeStart, rangeEnd] = dragRangeStart && dragRangeEnd ? normalizeDateRange(dragRangeStart, dragRangeEnd) : ["", ""];
-                        const isInDraftRange = rangeStart !== "" && key >= rangeStart && key <= rangeEnd;
-                        const [selectedStart, selectedEnd] =
-                          selectedRangeStart && selectedRangeEnd
-                            ? normalizeDateRange(selectedRangeStart, selectedRangeEnd)
-                            : ["", ""];
-                        const isInSelectedRange = selectedStart !== "" && key >= selectedStart && key <= selectedEnd;
-                        const dayTasks = taskCalendarMap.get(key) ?? [];
-                        return (
-                          <button
-                            key={key}
-                            type="button"
-                            className={`min-h-16 rounded-md border p-1 text-left text-xs transition ${
-                              isInDraftRange
-                                ? "border-blue-400 bg-blue-500/15"
-                                : isInSelectedRange
-                                  ? "border-primary/70 bg-primary/15"
-                                : isPicked
-                                ? "border-primary bg-primary/10"
-                                : isToday
-                                  ? "border-cyan-500/70 bg-cyan-500/10"
-                                : isCurrentMonth
-                                  ? "border-border hover:bg-accent/40"
-                                  : "border-border/50 text-muted-foreground/60"
-                            }`}
-                            onClick={(event: MouseEvent<HTMLButtonElement>) => {
-                              if (suppressCalendarClick) {
-                                setSuppressCalendarClick(false);
-                                return;
-                              }
-                              if (rangeMoved) {
-                                setRangeMoved(false);
-                                return;
-                              }
-                              if (event.shiftKey) {
-                                handleRangeAnchorPick(key);
-                                return;
-                              }
-                              handleCalendarPick(day);
-                            }}
-                            onMouseDown={(event) => startRangeSelection(day, event)}
-                            onMouseEnter={() => updateRangeSelection(day)}
-                            onMouseUp={finishRangeSelection}
-                            onDoubleClick={() => openQuickCreateTask(day)}
-                          >
-                            <p className="mb-1 flex items-center justify-end gap-1 text-[11px]">
-                              {day.getDate()}
-                              {isToday ? <span className="inline-block h-1.5 w-1.5 rounded-full bg-cyan-500" /> : null}
-                            </p>
-                            <div className="space-y-1">
-                              {dayTasks.slice(0, 2).map((task) => (
-                                <span
-                                  key={task.id}
-                                  role="button"
-                                  tabIndex={0}
-                                  className={`block cursor-pointer truncate rounded px-1 py-0.5 text-[10px] ${
-                                    task.status === "done"
-                                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
-                                      : task.status === "doing"
-                                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
-                                        : "bg-slate-500/15 text-slate-700 dark:text-slate-300"
-                                  }`}
-                                  onMouseDown={(event) => event.stopPropagation()}
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    handleEditTask(task.id);
-                                  }}
-                                  onKeyDown={(event) => {
-                                    if (event.key === "Enter" || event.key === " ") {
-                                      event.preventDefault();
-                                      handleEditTask(task.id);
-                                    }
-                                  }}
-                                >
-                                  {task.title}
-                                </span>
-                              ))}
-                              {dayTasks.length > 2 ? <span className="text-[10px] text-muted-foreground">+{dayTasks.length - 2}</span> : null}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs text-muted-foreground">
-                        {text.calendarHint} · {text.quickCreateHint} · {text.quickCreateEsc}
-                      </p>
-                      {showRangeCreateAction && selectedRangeStart && selectedRangeEnd ? (
-                        <Button type="button" size="xs" className="h-7 gap-1 px-2.5" onClick={openTaskModalFromSelectedRange}>
-                          <Plus className="h-3.5 w-3.5" />
-                          {text.createFromRange}
-                        </Button>
-                      ) : null}
-                    </div>
-                    <Separator />
-                    <div className="flex items-center justify-between rounded-md border bg-muted/30 p-3">
-                      <p className="text-xs text-muted-foreground">{text.openTaskModal}</p>
-                      <Button
-                        type="button"
-                        className="gap-2"
-                        onClick={() => {
-                          if (!taskForm.projectId) {
-                            setTaskForm((previous) => ({
-                              ...previous,
-                              projectId: selectedProjectId ?? projects[0]?.id ?? "",
-                              parentTaskId: TASK_CREATE_DEFAULTS.parentTaskId,
-                            }));
-                          }
-                          setEditingTaskId(null);
-                          setTaskError("");
-                          setTaskDialogOpen(true);
-                        }}
-                      >
-                        <Plus className="h-4 w-4" />
-                        {t.action.addTask}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <Card className="flex min-h-0 flex-col">
-                <CardHeader>
-                  <CardTitle>{t.views.tasks}</CardTitle>
-                </CardHeader>
-                <CardContent className="modern-scroll min-h-0 flex-1 space-y-3 overflow-y-auto">
-                  {taskHierarchy.map(({ task, depth, isLast, ancestorHasSibling }, index) => {
-                    const visualDepth = Math.min(depth, 6);
-                    const indentUnit = 18;
-                    const branchTop = 26;
-                    const currentGuideLeft = visualDepth > 0 ? (visualDepth - 1) * indentUnit + 8 : 0;
-                    return (
-                    <motion.div
-                      key={task.id}
-                      layout
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.2, delay: index * 0.02 }}
-                      className="relative"
-                      style={{ paddingLeft: `${visualDepth * indentUnit}px` }}
-                    >
-                      {Array.from({ length: visualDepth }).map((_, level) =>
-                        ancestorHasSibling[level] ? (
-                          <span
-                            key={`${task.id}-guide-${level}`}
-                            className="pointer-events-none absolute top-0 bottom-0 w-px bg-border/70"
-                            style={{ left: `${level * indentUnit + 8}px` }}
-                          />
-                        ) : null,
-                      )}
-                      {visualDepth > 0 ? (
-                        <>
-                          <span
-                            className="pointer-events-none absolute w-px bg-border/70"
-                            style={{
-                              left: `${currentGuideLeft}px`,
-                              top: 0,
-                              height: isLast ? `${branchTop}px` : "100%",
-                            }}
-                          />
-                          <span
-                            className="pointer-events-none absolute h-px bg-border/70"
-                            style={{
-                              left: `${currentGuideLeft}px`,
-                              top: `${branchTop}px`,
-                              width: `${Math.max(8, indentUnit - 6)}px`,
-                            }}
-                          />
-                        </>
-                      ) : null}
-                      <div className="rounded-xl border bg-card/70 p-3 shadow-sm transition hover:shadow-md">
-                      <div className="mb-2 flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold">
-                            {task.title}
-                          </p>
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            {text.plannedRange}: {formatDate(task.startDate, locale)} - {formatDate(task.dueDate, locale)}
-                          </p>
-                          {task.parentTaskId && taskTitleMap.has(task.parentTaskId) ? (
-                            <p className="mt-0.5 text-xs text-muted-foreground">
-                              {text.parentTask}: {taskTitleMap.get(task.parentTaskId)}
-                            </p>
-                          ) : null}
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            {text.actualRange}:{" "}
-                            {task.actualStartDate ? formatDateTime(task.actualStartDate, locale) : text.notStarted}
-                            {" - "}
-                            {task.actualEndDate ? formatDateTime(task.actualEndDate, locale) : text.notFinished}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button type="button" variant="outline" size="icon-xs" className="rounded-full" onClick={() => openAiSplitDialog(task)}>
-                            <Sparkles className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button type="button" variant="outline" size="icon-xs" className="rounded-full" onClick={() => handleEditTask(task.id)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon-xs"
-                            className="rounded-full text-destructive hover:text-destructive"
-                            onClick={() => handleDeleteTask(task.id)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2">
-                        {task.parentTaskId ? <span className={`${markerBase} border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300`}>{text.subtask}</span> : null}
-                        <span className={`${markerBase} ${taskStatusTone[task.status]}`}>{t.status[task.status]}</span>
-                        <span className={`${markerBase} ${priorityTone[task.priority]}`}>{t.priority[task.priority]}</span>
-                        <span
-                          className={`${markerBase} ${
-                            task.spentHours > task.estimateHours
-                              ? "border-red-500/40 bg-red-500/15 text-red-700 dark:text-red-300"
-                              : task.spentHours >= task.estimateHours * 0.8
-                                ? "border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-300"
-                                : "border-teal-500/40 bg-teal-500/15 text-teal-700 dark:text-teal-300"
-                          }`}
-                        >
-                          {task.spentHours}/{task.estimateHours} {t.units.hours}
-                        </span>
-                      </div>
-                      <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-muted/20 p-2">
-                        {TASK_STATUSES.map((status) => (
-                          <Button
-                            key={status}
-                            type="button"
-                            size="xs"
-                            variant={task.status === status ? "default" : "outline"}
-                            className="h-7"
-                            onClick={() => handleTaskStatusChange(task, status)}
-                            disabled={task.status === status}
-                          >
-                            {t.status[status]}
-                          </Button>
-                        ))}
-                      </div>
-                      </div>
-                    </motion.div>
-                    );
-                  })}
-                </CardContent>
-              </Card>
-            </motion.section>
-          ) : null}
-
-          {view === "notes" ? (
-            <motion.section key="notes" className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_1fr]" {...pageTransition}>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BookText className="h-4 w-4" />
-                    {t.section.noteManager}
+                    {editingProjectId ? text.editProject : t.action.addProject}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <form className="space-y-3" onSubmit={addNote}>
+                  <form className="space-y-3" onSubmit={addProject}>
                     <div className="space-y-2">
-                      <Label>{t.field.project}</Label>
-                      <Select value={noteForm.projectId || "__none__"} onValueChange={(value) => setNoteForm((previous) => ({ ...previous, projectId: value === "__none__" ? "" : value }))}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">-</SelectItem>
-                          {projects.map((project) => (
-                            <SelectItem key={project.id} value={project.id}>
-                              {project.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>{t.field.noteTitle}</Label>
+                      <Label>{t.field.name}</Label>
                       <Input
-                        value={noteForm.title}
+                        value={projectForm.name}
                         onChange={(event) => {
                           const { value } = event.currentTarget;
-                          setNoteForm((previous) => ({ ...previous, title: value }));
+                          setProjectForm((previous) => ({ ...previous, name: value }));
                         }}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>{t.field.noteContent}</Label>
+                      <Label>{t.field.description}</Label>
                       <Textarea
-                        rows={5}
-                        value={noteForm.content}
+                        value={projectForm.description}
                         onChange={(event) => {
                           const { value } = event.currentTarget;
-                          setNoteForm((previous) => ({ ...previous, content: value }));
+                          setProjectForm((previous) => ({ ...previous, description: value }));
                         }}
                       />
                     </div>
-                    {noteError ? <p className="text-sm text-destructive">{noteError}</p> : null}
-                    <Button type="submit">{t.action.addNote}</Button>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>{t.field.startDate}</Label>
+                        <Input
+                          type="date"
+                          value={projectForm.startDate}
+                          onChange={(event) => {
+                            const { value } = event.currentTarget;
+                            setProjectForm((previous) => ({ ...previous, startDate: value }));
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t.field.endDate}</Label>
+                        <Input
+                          type="date"
+                          value={projectForm.endDate}
+                          onChange={(event) => {
+                            const { value } = event.currentTarget;
+                            setProjectForm((previous) => ({ ...previous, endDate: value }));
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <CalendarDays className="h-3.5 w-3.5" />
+                      <span>{text.projectDateAdjustHint}</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className={`${markerBase} ${projectStatusTone.planning}`}>
+                        {t.status.planning}
+                      </span>
+                    </div>
+                    {projectError ? (
+                      <p className="text-sm text-destructive">{projectError}</p>
+                    ) : null}
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setProjectDialogOpen(false);
+                          setEditingProjectId(null);
+                        }}
+                      >
+                        {text.cancel}
+                      </Button>
+                      <Button type="submit" className="gap-2">
+                        {editingProjectId ? (
+                          <Pencil className="h-4 w-4" />
+                        ) : (
+                          <Plus className="h-4 w-4" />
+                        )}
+                        {editingProjectId ? text.saveProject : t.action.addProject}
+                      </Button>
+                    </div>
                   </form>
                 </CardContent>
               </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>{t.views.notes}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {notes.map((note, index) => (
-                    <motion.div
-                      key={note.id}
-                      layout
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.18, delay: index * 0.02 }}
-                      className="rounded-lg border p-3"
-                    >
-                      <p className="text-sm font-medium">{note.title}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{note.content}</p>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {new Date(note.updatedAt).toLocaleString(locale)}
-                      </p>
-                    </motion.div>
-                  ))}
-                </CardContent>
-              </Card>
-            </motion.section>
-          ) : null}
-
-          {view === "pomodoro" ? (
-            <PomodoroPage />
-          ) : null}
-
-          {view === "chat" ? (
-            <ChatPage />
-          ) : null}
-
-          {view === "settings" ? (
-            <motion.section
-              key="settings"
-              className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_1fr]"
-              initial={{ opacity: 0, x: 50, y: -30, scale: 0.95 }}
-              animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 50, y: -30, scale: 0.95 }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
+            </motion.div>
+          </motion.div>
+        ) : null}
+        {taskDialogOpen ? (
+          <motion.div
+            className="absolute inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 18, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="w-full max-w-3xl"
             >
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Settings2 className="h-4 w-4" />
-                    {t.section.settings}
+                    <ListTodo className="h-4 w-4" />
+                    {editingTaskId ? text.taskModalTitleEdit : text.taskModalTitleCreate}
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>{t.settings.language}</Label>
-                      <Select value={locale} onValueChange={(value) => setLocale(value as "zh-CN" | "en-US")}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="zh-CN">中文</SelectItem>
-                          <SelectItem value="en-US">English</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>{t.settings.theme}</Label>
-                      <Select value={settings.theme} onValueChange={(value) => setTheme(value as "system" | "light" | "dark")}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="system">{t.settings.system}</SelectItem>
-                          <SelectItem value="light">{t.settings.light}</SelectItem>
-                          <SelectItem value="dark">{t.settings.dark}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between rounded-lg border p-3">
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium">{t.settings.notifications}</p>
-                        <p className="text-xs text-muted-foreground">{text.notificationsHelp}</p>
-                      </div>
-                      <Switch checked={settings.notificationsEnabled} onCheckedChange={(checked) => updateSettings({ notificationsEnabled: checked })} />
-                    </div>
-                    <div className="flex items-center justify-between rounded-lg border p-3">
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium">{text.autoTrackWork}</p>
-                        <p className="text-xs text-muted-foreground">{text.autoTrackWorkHelp}</p>
-                      </div>
-                      <Switch
-                        checked={autoTrackWorkOnDone}
-                        onCheckedChange={(checked) => updateSettings({ autoTrackWorkOnDone: checked })}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between rounded-lg border p-3">
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium">{t.settings.privacy}</p>
-                        <p className="text-xs text-muted-foreground">{text.privacyHelp}</p>
-                      </div>
-                      <Switch checked={settings.privacyMode} onCheckedChange={(checked) => updateSettings({ privacyMode: checked })} />
-                    </div>
-                    <div className="flex items-center justify-between rounded-lg border p-3">
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium">{t.settings.telemetry}</p>
-                        <p className="text-xs text-muted-foreground">{text.telemetryHelp}</p>
-                      </div>
-                      <Switch checked={settings.telemetryEnabled} onCheckedChange={(checked) => updateSettings({ telemetryEnabled: checked })} />
-                    </div>
-                    <div className="space-y-3 rounded-lg border p-3">
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium">{text.windowSize}</p>
-                        <p className="text-xs text-muted-foreground">{text.windowSizeDesc}</p>
-                      </div>
-                      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                        <div className="space-y-2">
-                          <Label>{text.windowPreset}</Label>
-                          <Select
-                            value={settings.windowSizePreset}
-                            onValueChange={(value) => {
-                              const preset = value as WindowSizePreset;
-                              if (preset === "custom") {
-                                updateSettings({ windowSizePreset: "custom" });
-                                return;
-                              }
-                              const next = WINDOW_PRESETS[preset];
-                              updateSettings({
-                                windowSizePreset: preset,
-                                windowWidth: next.width,
-                                windowHeight: next.height,
-                              });
-                              void applyWindowSize(next.width, next.height);
-                            }}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="small">{text.windowSmall}</SelectItem>
-                              <SelectItem value="medium">{text.windowMedium}</SelectItem>
-                              <SelectItem value="large">{text.windowLarge}</SelectItem>
-                              <SelectItem value="custom">{text.windowCustom}</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>{text.windowWidth}</Label>
-                          <Input
-                            type="number"
-                            min={900}
-                            max={3840}
-                            value={settings.windowWidth}
-                            disabled={settings.windowSizePreset !== "custom"}
-                            onChange={(event) => {
-                              updateSettings({
-                                windowSizePreset: "custom",
-                                windowWidth: Math.max(900, Number(event.currentTarget.value) || 900),
-                              });
-                            }}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>{text.windowHeight}</Label>
-                          <Input
-                            type="number"
-                            min={600}
-                            max={2160}
-                            value={settings.windowHeight}
-                            disabled={settings.windowSizePreset !== "custom"}
-                            onChange={(event) => {
-                              updateSettings({
-                                windowSizePreset: "custom",
-                                windowHeight: Math.max(600, Number(event.currentTarget.value) || 600),
-                              });
-                            }}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-xs text-muted-foreground">
-                          {isTauriWindowApiAvailable ? `${settings.windowWidth} x ${settings.windowHeight}` : text.windowDesktopOnly}
-                        </p>
+                <CardContent>
+                  <form className="space-y-3" onSubmit={addTask}>
+                    {editingTaskId ? (
+                      <div className="flex items-center justify-between rounded-md border border-blue-400/40 bg-blue-500/10 px-3 py-2 text-xs text-blue-700 dark:text-blue-300">
+                        <span>{text.updateTaskHint}</span>
                         <Button
                           type="button"
-                          size="sm"
-                          disabled={!isTauriWindowApiAvailable}
-                          onClick={() => {
-                            const width = Math.max(900, Number(settings.windowWidth) || 1280);
-                            const height = Math.max(600, Number(settings.windowHeight) || 800);
-                            updateSettings({
-                              windowSizePreset: "custom",
-                              windowWidth: width,
-                              windowHeight: height,
-                            });
-                            void applyWindowSize(width, height);
-                          }}
+                          variant="ghost"
+                          size="xs"
+                          className="h-6 gap-1"
+                          onClick={cancelTaskEdit}
                         >
-                          {text.applyWindowSize}
+                          <XCircle className="h-3.5 w-3.5" />
+                          {text.cancelEdit}
                         </Button>
                       </div>
+                    ) : null}
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>{t.field.project}</Label>
+                        <Select
+                          value={taskForm.projectId}
+                          onValueChange={(value) =>
+                            setTaskForm((previous) => ({
+                              ...previous,
+                              projectId: value,
+                              parentTaskId: TASK_CREATE_DEFAULTS.parentTaskId,
+                            }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {projects.map((project) => (
+                              <SelectItem key={project.id} value={project.id}>
+                                {project.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t.field.taskTitle}</Label>
+                        <Input
+                          value={taskForm.title}
+                          onChange={(event) => {
+                            const { value } = event.currentTarget;
+                            setTaskForm((previous) => ({ ...previous, title: value }));
+                          }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <div className="space-y-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>{t.settings.account}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
                     <div className="space-y-2">
-                      <Label>{t.field.name}</Label>
-                      <Input value={settings.accountName} onChange={(event) => updateSettings({ accountName: event.currentTarget.value })} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>{t.field.email}</Label>
-                      <Input type="email" value={settings.accountEmail} onChange={(event) => updateSettings({ accountEmail: event.currentTarget.value })} />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Bell className="h-4 w-4" />
-                      {t.section.cache}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="space-y-2">
-                      <Label>{t.settings.cacheRetention}</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={365}
-                        value={settings.cacheRetentionDays}
-                        onChange={(event) => updateSettings({ cacheRetentionDays: Number(event.currentTarget.value) || 1 })}
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {t.settings.cacheLastCleaned}: {cacheClearedAt ? new Date(cacheClearedAt).toLocaleString(locale) : "-"}
-                    </p>
-                    <Button variant="outline" className="w-full gap-2" onClick={clearCache}>
-                      <Trash2 className="h-4 w-4" />
-                      {t.action.clearCache}
-                    </Button>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <HeartPulse className="h-4 w-4" />
-                      {t.sidebar.about}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">{t.sidebar.version}</span>
-                      <span className="text-sm font-medium">0.1.0</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">{t.sidebar.developer}</span>
-                      <span className="text-sm font-medium">Plan Manager Team</span>
-                    </div>
-                    <Separator />
-                    <div className="text-center text-xs text-muted-foreground">
-                      <p className="font-medium">{t.appTitle}</p>
-                      <p className="mt-1">{t.appSubtitle}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </motion.section>
-          ) : null}
-          </AnimatePresence>
-        </main>
-      </div>
-      <AnimatePresence>
-      {projectDialogOpen ? (
-        <motion.div
-          className="absolute inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.18 }}
-        >
-          <motion.div
-            initial={{ opacity: 0, y: 18, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.98 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="w-full max-w-2xl"
-          >
-          <Card className="w-full max-w-2xl">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FolderKanban className="h-4 w-4" />
-                {editingProjectId ? text.editProject : t.action.addProject}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form className="space-y-3" onSubmit={addProject}>
-                <div className="space-y-2">
-                  <Label>{t.field.name}</Label>
-                  <Input
-                    value={projectForm.name}
-                    onChange={(event) => {
-                      const { value } = event.currentTarget;
-                      setProjectForm((previous) => ({ ...previous, name: value }));
-                    }}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>{t.field.description}</Label>
-                  <Textarea
-                    value={projectForm.description}
-                    onChange={(event) => {
-                      const { value } = event.currentTarget;
-                      setProjectForm((previous) => ({ ...previous, description: value }));
-                    }}
-                  />
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>{t.field.startDate}</Label>
-                    <Input
-                      type="date"
-                      value={projectForm.startDate}
-                      onChange={(event) => {
-                        const { value } = event.currentTarget;
-                        setProjectForm((previous) => ({ ...previous, startDate: value }));
-                      }}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>{t.field.endDate}</Label>
-                    <Input
-                      type="date"
-                      value={projectForm.endDate}
-                      onChange={(event) => {
-                        const { value } = event.currentTarget;
-                        setProjectForm((previous) => ({ ...previous, endDate: value }));
-                      }}
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <CalendarDays className="h-3.5 w-3.5" />
-                  <span>{text.projectDateAdjustHint}</span>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className={`${markerBase} ${projectStatusTone.planning}`}>{t.status.planning}</span>
-                </div>
-                {projectError ? <p className="text-sm text-destructive">{projectError}</p> : null}
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setProjectDialogOpen(false);
-                      setEditingProjectId(null);
-                    }}
-                  >
-                    {text.cancel}
-                  </Button>
-                  <Button type="submit" className="gap-2">
-                    {editingProjectId ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                    {editingProjectId ? text.saveProject : t.action.addProject}
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-          </motion.div>
-        </motion.div>
-      ) : null}
-      {taskDialogOpen ? (
-        <motion.div
-          className="absolute inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.18 }}
-        >
-          <motion.div
-            initial={{ opacity: 0, y: 18, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.98 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="w-full max-w-3xl"
-          >
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <ListTodo className="h-4 w-4" />
-                  {editingTaskId ? text.taskModalTitleEdit : text.taskModalTitleCreate}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form className="space-y-3" onSubmit={addTask}>
-                  {editingTaskId ? (
-                    <div className="flex items-center justify-between rounded-md border border-blue-400/40 bg-blue-500/10 px-3 py-2 text-xs text-blue-700 dark:text-blue-300">
-                      <span>{text.updateTaskHint}</span>
-                      <Button type="button" variant="ghost" size="xs" className="h-6 gap-1" onClick={cancelTaskEdit}>
-                        <XCircle className="h-3.5 w-3.5" />
-                        {text.cancelEdit}
-                      </Button>
-                    </div>
-                  ) : null}
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>{t.field.project}</Label>
+                      <Label>{text.parentTask}</Label>
                       <Select
-                        value={taskForm.projectId}
+                        value={taskForm.parentTaskId || "__none__"}
                         onValueChange={(value) =>
                           setTaskForm((previous) => ({
                             ...previous,
-                            projectId: value,
-                            parentTaskId: TASK_CREATE_DEFAULTS.parentTaskId,
+                            parentTaskId: value === "__none__" ? "" : value,
                           }))
                         }
                       >
@@ -3179,628 +4060,787 @@ export function LegacyApp() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {projects.map((project) => (
-                            <SelectItem key={project.id} value={project.id}>
-                              {project.name}
+                          <SelectItem value="__none__">{text.noParentTask}</SelectItem>
+                          {parentTaskCandidates.map((task) => (
+                            <SelectItem key={`parent-${task.id}`} value={task.id}>
+                              {task.title}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2">
-                      <Label>{t.field.taskTitle}</Label>
-                      <Input
-                        value={taskForm.title}
-                        onChange={(event) => {
-                          const { value } = event.currentTarget;
-                          setTaskForm((previous) => ({ ...previous, title: value }));
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>{text.parentTask}</Label>
-                    <Select
-                      value={taskForm.parentTaskId || "__none__"}
-                      onValueChange={(value) =>
-                        setTaskForm((previous) => ({ ...previous, parentTaskId: value === "__none__" ? "" : value }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">{text.noParentTask}</SelectItem>
-                        {parentTaskCandidates.map((task) => (
-                          <SelectItem key={`parent-${task.id}`} value={task.id}>
-                            {task.title}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>{t.field.status}</Label>
-                      <Select value={taskForm.status} onValueChange={(value) => setTaskForm((previous) => ({ ...previous, status: value as TaskStatus }))}>
-                        <SelectTrigger className={taskStatusTriggerTone[taskForm.status]}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {TASK_STATUSES.map((status) => (
-                            <SelectItem key={status} value={status}>
-                              <span className={`${markerBase} ${taskStatusTone[status]}`}>{t.status[status]}</span>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>{t.field.status}</Label>
+                        <Select
+                          value={taskForm.status}
+                          onValueChange={(value) =>
+                            setTaskForm((previous) => ({
+                              ...previous,
+                              status: value as TaskStatus,
+                            }))
+                          }
+                        >
+                          <SelectTrigger className={taskStatusTriggerTone[taskForm.status]}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {TASK_STATUSES.map((status) => (
+                              <SelectItem key={status} value={status}>
+                                <span className={`${markerBase} ${taskStatusTone[status]}`}>
+                                  {t.status[status]}
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t.field.priority}</Label>
+                        <Select
+                          value={taskForm.priority}
+                          onValueChange={(value) =>
+                            setTaskForm((previous) => ({
+                              ...previous,
+                              priority: value as "low" | "medium" | "high",
+                            }))
+                          }
+                        >
+                          <SelectTrigger className={priorityTriggerTone[taskForm.priority]}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="low">
+                              <span className={`${markerBase} ${priorityTone.low}`}>
+                                {t.priority.low}
+                              </span>
                             </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                            <SelectItem value="medium">
+                              <span className={`${markerBase} ${priorityTone.medium}`}>
+                                {t.priority.medium}
+                              </span>
+                            </SelectItem>
+                            <SelectItem value="high">
+                              <span className={`${markerBase} ${priorityTone.high}`}>
+                                {t.priority.high}
+                              </span>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>{t.field.priority}</Label>
-                      <Select value={taskForm.priority} onValueChange={(value) => setTaskForm((previous) => ({ ...previous, priority: value as "low" | "medium" | "high" }))}>
-                        <SelectTrigger className={priorityTriggerTone[taskForm.priority]}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="low">
-                            <span className={`${markerBase} ${priorityTone.low}`}>{t.priority.low}</span>
-                          </SelectItem>
-                          <SelectItem value="medium">
-                            <span className={`${markerBase} ${priorityTone.medium}`}>{t.priority.medium}</span>
-                          </SelectItem>
-                          <SelectItem value="high">
-                            <span className={`${markerBase} ${priorityTone.high}`}>{t.priority.high}</span>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>{t.field.startDate}</Label>
+                        <Input
+                          type="date"
+                          value={taskForm.startDate}
+                          readOnly
+                          className="bg-muted/40"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t.field.dueDate}</Label>
+                        <Input
+                          type="date"
+                          value={taskForm.dueDate}
+                          readOnly
+                          className="bg-muted/40"
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>{t.field.startDate}</Label>
-                      <Input type="date" value={taskForm.startDate} readOnly className="bg-muted/40" />
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>{t.field.estimate}</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={taskForm.estimateHours}
+                          onChange={(event) => {
+                            const { value } = event.currentTarget;
+                            setTaskForm((previous) => ({
+                              ...previous,
+                              estimateHours: Number(value),
+                            }));
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t.field.spent}</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={taskForm.spentHours}
+                          onChange={(event) => {
+                            const { value } = event.currentTarget;
+                            setTaskForm((previous) => ({ ...previous, spentHours: Number(value) }));
+                          }}
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>{t.field.dueDate}</Label>
-                      <Input type="date" value={taskForm.dueDate} readOnly className="bg-muted/40" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>{t.field.estimate}</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={taskForm.estimateHours}
-                        onChange={(event) => {
-                          const { value } = event.currentTarget;
-                          setTaskForm((previous) => ({ ...previous, estimateHours: Number(value) }));
-                        }}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>{t.field.spent}</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        value={taskForm.spentHours}
-                        onChange={(event) => {
-                          const { value } = event.currentTarget;
-                          setTaskForm((previous) => ({ ...previous, spentHours: Number(value) }));
-                        }}
-                      />
-                    </div>
-                  </div>
-                  {taskError ? <p className="text-sm text-destructive">{taskError}</p> : null}
-                  <div className="flex justify-end gap-2">
-                    <Button type="button" variant="outline" onClick={cancelTaskEdit}>
-                      {text.cancel}
-                    </Button>
-                    <Button type="submit" className="gap-2">
-                      {editingTaskId ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                      {editingTaskId ? text.saveTask : t.action.addTask}
-                    </Button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </motion.div>
-      ) : null}
-      {aiSplitDialog ? (
-        <motion.div
-          className="absolute inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.18 }}
-        >
-          <motion.div
-            initial={{ opacity: 0, y: 18, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.98 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="w-full max-w-2xl"
-          >
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4" />
-                  {text.aiSplitTitle}
-                </CardTitle>
-                <CardDescription>{text.aiSplitDesc}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <Label>{text.ollamaModel}</Label>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="xs"
-                        className="h-7 gap-1"
-                        onClick={() => {
-                          void loadOllamaModels();
-                        }}
-                        disabled={ollamaModelsLoading}
-                      >
-                        <RotateCcw className="h-3.5 w-3.5" />
-                        {text.refreshModels}
+                    {taskError ? <p className="text-sm text-destructive">{taskError}</p> : null}
+                    <div className="flex justify-end gap-2">
+                      <Button type="button" variant="outline" onClick={cancelTaskEdit}>
+                        {text.cancel}
+                      </Button>
+                      <Button type="submit" className="gap-2">
+                        {editingTaskId ? (
+                          <Pencil className="h-4 w-4" />
+                        ) : (
+                          <Plus className="h-4 w-4" />
+                        )}
+                        {editingTaskId ? text.saveTask : t.action.addTask}
                       </Button>
                     </div>
-                    {ollamaModels.length > 0 ? (
-                      <Select
-                        value={aiSplitDialog.model}
-                        onValueChange={(value) =>
-                          setAiSplitDialog((previous) => (previous ? { ...previous, model: value, error: "", success: "" } : previous))
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {ollamaModels.map((model) => (
-                            <SelectItem key={model} value={model}>
-                              {model}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
+                  </form>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </motion.div>
+        ) : null}
+        {aiSplitDialog ? (
+          <motion.div
+            className="absolute inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 18, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="w-full max-w-2xl"
+            >
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4" />
+                    {text.aiSplitTitle}
+                  </CardTitle>
+                  <CardDescription>{text.aiSplitDesc}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label>{text.ollamaModel}</Label>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="xs"
+                          className="h-7 gap-1"
+                          onClick={() => {
+                            void loadOllamaModels();
+                          }}
+                          disabled={ollamaModelsLoading}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          {text.refreshModels}
+                        </Button>
+                      </div>
+                      {ollamaModels.length > 0 ? (
+                        <Select
+                          value={aiSplitDialog.model}
+                          onValueChange={(value) =>
+                            setAiSplitDialog((previous) =>
+                              previous
+                                ? { ...previous, model: value, error: "", success: "" }
+                                : previous,
+                            )
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ollamaModels.map((model) => (
+                              <SelectItem key={model} value={model}>
+                                {model}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          value={aiSplitDialog.model}
+                          onChange={(event) =>
+                            setAiSplitDialog((previous) =>
+                              previous
+                                ? {
+                                    ...previous,
+                                    model: event.currentTarget.value,
+                                    error: "",
+                                    success: "",
+                                  }
+                                : previous,
+                            )
+                          }
+                        />
+                      )}
+                      {ollamaModelsLoading ? (
+                        <p className="text-xs text-muted-foreground">{text.loadingModels}</p>
+                      ) : null}
+                      {ollamaModelsError ? (
+                        <p className="text-xs text-muted-foreground">{ollamaModelsError}</p>
+                      ) : null}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>{text.splitCount}</Label>
                       <Input
-                        value={aiSplitDialog.model}
+                        type="number"
+                        min={2}
+                        max={20}
+                        value={aiSplitDialog.count}
+                        onChange={(event) => {
+                          const nextCount = Math.max(
+                            2,
+                            Math.min(20, Number(event.currentTarget.value) || 2),
+                          );
+                          setAiFormatCopied(false);
+                          setAiSplitDialog((previous) =>
+                            previous
+                              ? { ...previous, count: nextCount, error: "", success: "" }
+                              : previous,
+                          );
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{text.splitPrompt}</Label>
+                    <Textarea
+                      rows={4}
+                      value={aiSplitDialog.prompt}
+                      placeholder={text.splitPromptPlaceholder}
+                      onChange={(event) =>
+                        setAiSplitDialog((previous) =>
+                          previous
+                            ? {
+                                ...previous,
+                                prompt: event.currentTarget.value,
+                                error: "",
+                                success: "",
+                              }
+                            : previous,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>{text.splitDateRange}</Label>
+                      <Input
+                        type="date"
+                        value={aiSplitDialog.startDate}
                         onChange={(event) =>
                           setAiSplitDialog((previous) =>
                             previous
-                              ? { ...previous, model: event.currentTarget.value, error: "", success: "" }
+                              ? {
+                                  ...previous,
+                                  startDate: event.currentTarget.value,
+                                  error: "",
+                                  success: "",
+                                }
                               : previous,
                           )
                         }
                       />
-                    )}
-                    {ollamaModelsLoading ? <p className="text-xs text-muted-foreground">{text.loadingModels}</p> : null}
-                    {ollamaModelsError ? <p className="text-xs text-muted-foreground">{ollamaModelsError}</p> : null}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>{text.splitCount}</Label>
-                    <Input
-                      type="number"
-                      min={2}
-                      max={20}
-                      value={aiSplitDialog.count}
-                      onChange={(event) => {
-                        const nextCount = Math.max(2, Math.min(20, Number(event.currentTarget.value) || 2));
-                        setAiFormatCopied(false);
-                        setAiSplitDialog((previous) =>
-                          previous ? { ...previous, count: nextCount, error: "", success: "" } : previous,
-                        );
-                      }}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>{text.splitPrompt}</Label>
-                  <Textarea
-                    rows={4}
-                    value={aiSplitDialog.prompt}
-                    placeholder={text.splitPromptPlaceholder}
-                    onChange={(event) =>
-                      setAiSplitDialog((previous) =>
-                        previous ? { ...previous, prompt: event.currentTarget.value, error: "", success: "" } : previous,
-                      )
-                    }
-                  />
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>{text.splitDateRange}</Label>
-                    <Input
-                      type="date"
-                      value={aiSplitDialog.startDate}
-                      onChange={(event) =>
-                        setAiSplitDialog((previous) =>
-                          previous ? { ...previous, startDate: event.currentTarget.value, error: "", success: "" } : previous,
-                        )
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="opacity-0">{text.splitDateRange}</Label>
-                    <Input
-                      type="date"
-                      value={aiSplitDialog.dueDate}
-                      onChange={(event) =>
-                        setAiSplitDialog((previous) =>
-                          previous ? { ...previous, dueDate: event.currentTarget.value, error: "", success: "" } : previous,
-                        )
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label>{text.splitFormatPrompt}</Label>
-                    <Button type="button" size="sm" variant="outline" className="gap-1.5" onClick={copyAiFormatPrompt}>
-                      {aiFormatCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                      {aiFormatCopied ? text.copied : text.copyFormatPrompt}
-                    </Button>
-                  </div>
-                  <Textarea rows={3} value={aiFormatPromptTemplate} readOnly className="font-mono text-xs" />
-                  <p className="text-xs text-muted-foreground">{text.splitFormatPromptHint}</p>
-                </div>
-                {(aiSplitDialog.pending || aiSplitDialog.success) ? (
-                  <div className="space-y-2 rounded-lg border border-black/25 bg-white p-3">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-medium text-foreground/90">{text.aiSplitProgress}</span>
-                      <span className="text-muted-foreground">{aiSplitDialog.phase}</span>
                     </div>
-                    <div className="h-2.5 overflow-hidden rounded-full bg-black/15">
-                      <motion.div
-                        className="h-full rounded-full bg-black shadow-none"
-                        initial={{ width: "0%" }}
-                        animate={{ width: `${Math.max(2, aiSplitDialog.progress)}%` }}
-                        transition={{ duration: 0.35, ease: "easeOut" }}
+                    <div className="space-y-2">
+                      <Label className="opacity-0">{text.splitDateRange}</Label>
+                      <Input
+                        type="date"
+                        value={aiSplitDialog.dueDate}
+                        onChange={(event) =>
+                          setAiSplitDialog((previous) =>
+                            previous
+                              ? {
+                                  ...previous,
+                                  dueDate: event.currentTarget.value,
+                                  error: "",
+                                  success: "",
+                                }
+                              : previous,
+                          )
+                        }
                       />
                     </div>
-                    <p className="text-right text-xs font-semibold tabular-nums text-black/80">{aiSplitDialog.progress}%</p>
                   </div>
-                ) : null}
-                {aiSplitDialog.error ? <p className="text-sm text-destructive">{aiSplitDialog.error}</p> : null}
-                {aiSplitDialog.success ? <p className="text-sm text-emerald-600">{aiSplitDialog.success}</p> : null}
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setAiSplitDialog(null);
-                      setAiFormatCopied(false);
-                    }}
-                  >
-                    {text.cancel}
-                  </Button>
-                  <Button type="button" className="gap-2" onClick={submitAiSplit} disabled={aiSplitDialog.pending}>
-                    <Sparkles className="h-4 w-4" />
-                    {aiSplitDialog.pending ? `${text.generateSubtasks}...` : text.generateSubtasks}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </motion.div>
-      ) : null}
-      {aiProjectSplitDialog ? (
-        <motion.div
-          className="absolute inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.18 }}
-        >
-          <motion.div
-            initial={{ opacity: 0, y: 18, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.98 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="w-full max-w-2xl"
-          >
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4" />
-                  {text.aiProjectSplitTitle}
-                </CardTitle>
-                <CardDescription>{text.aiProjectSplitDesc}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-2">
                     <div className="flex items-center justify-between gap-2">
-                      <Label>{text.ollamaModel}</Label>
+                      <Label>{text.splitFormatPrompt}</Label>
                       <Button
                         type="button"
-                        variant="ghost"
-                        size="xs"
-                        className="h-7 gap-1"
-                        onClick={() => {
-                          void loadOllamaModels();
-                        }}
-                        disabled={ollamaModelsLoading}
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5"
+                        onClick={copyAiFormatPrompt}
                       >
-                        <RotateCcw className="h-3.5 w-3.5" />
-                        {text.refreshModels}
+                        {aiFormatCopied ? (
+                          <Check className="h-3.5 w-3.5" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                        {aiFormatCopied ? text.copied : text.copyFormatPrompt}
                       </Button>
                     </div>
-                    {ollamaModels.length > 0 ? (
-                      <Select
-                        value={aiProjectSplitDialog.model}
-                        onValueChange={(value) =>
-                          setAiProjectSplitDialog((previous) => (previous ? { ...previous, model: value, error: "", success: "" } : previous))
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {ollamaModels.map((model) => (
-                            <SelectItem key={`project-${model}`} value={model}>
-                              {model}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Input
-                        value={aiProjectSplitDialog.model}
-                        onChange={(event) =>
-                          setAiProjectSplitDialog((previous) =>
-                            previous
-                              ? { ...previous, model: event.currentTarget.value, error: "", success: "" }
-                              : previous,
-                          )
-                        }
-                      />
-                    )}
-                    {ollamaModelsLoading ? <p className="text-xs text-muted-foreground">{text.loadingModels}</p> : null}
-                    {ollamaModelsError ? <p className="text-xs text-muted-foreground">{ollamaModelsError}</p> : null}
+                    <Textarea
+                      rows={3}
+                      value={aiFormatPromptTemplate}
+                      readOnly
+                      className="font-mono text-xs"
+                    />
+                    <p className="text-xs text-muted-foreground">{text.splitFormatPromptHint}</p>
                   </div>
-                  <div className="space-y-2">
-                    <Label>{text.splitCount}</Label>
-                    <Input
-                      type="number"
-                      min={2}
-                      max={20}
-                      value={aiProjectSplitDialog.count}
-                      onChange={(event) => {
-                        const nextCount = Math.max(2, Math.min(20, Number(event.currentTarget.value) || 2));
-                        setAiProjectFormatCopied(false);
-                        setAiProjectSplitDialog((previous) =>
-                          previous ? { ...previous, count: nextCount, error: "", success: "" } : previous,
-                        );
+                  {aiSplitDialog.pending || aiSplitDialog.success ? (
+                    <div className="space-y-2 rounded-lg border border-black/25 bg-white p-3">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-medium text-foreground/90">
+                          {text.aiSplitProgress}
+                        </span>
+                        <span className="text-muted-foreground">{aiSplitDialog.phase}</span>
+                      </div>
+                      <div className="h-2.5 overflow-hidden rounded-full bg-black/15">
+                        <motion.div
+                          className="h-full rounded-full bg-black shadow-none"
+                          initial={{ width: "0%" }}
+                          animate={{ width: `${Math.max(2, aiSplitDialog.progress)}%` }}
+                          transition={{ duration: 0.35, ease: "easeOut" }}
+                        />
+                      </div>
+                      <p className="text-right text-xs font-semibold tabular-nums text-black/80">
+                        {aiSplitDialog.progress}%
+                      </p>
+                    </div>
+                  ) : null}
+                  {aiSplitDialog.error ? (
+                    <p className="text-sm text-destructive">{aiSplitDialog.error}</p>
+                  ) : null}
+                  {aiSplitDialog.success ? (
+                    <p className="text-sm text-emerald-600">{aiSplitDialog.success}</p>
+                  ) : null}
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setAiSplitDialog(null);
+                        setAiFormatCopied(false);
                       }}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>{text.splitPrompt}</Label>
-                  <Textarea
-                    rows={4}
-                    value={aiProjectSplitDialog.prompt}
-                    placeholder={text.splitPromptPlaceholder}
-                    onChange={(event) =>
-                      setAiProjectSplitDialog((previous) =>
-                        previous ? { ...previous, prompt: event.currentTarget.value, error: "", success: "" } : previous,
-                      )
-                    }
-                  />
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>{text.splitDateRange}</Label>
-                    <Input
-                      type="date"
-                      value={aiProjectSplitDialog.startDate}
-                      onChange={(event) =>
-                        setAiProjectSplitDialog((previous) =>
-                          previous ? { ...previous, startDate: event.currentTarget.value, error: "", success: "" } : previous,
-                        )
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="opacity-0">{text.splitDateRange}</Label>
-                    <Input
-                      type="date"
-                      value={aiProjectSplitDialog.dueDate}
-                      onChange={(event) =>
-                        setAiProjectSplitDialog((previous) =>
-                          previous ? { ...previous, dueDate: event.currentTarget.value, error: "", success: "" } : previous,
-                        )
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label>{text.splitFormatPrompt}</Label>
-                    <Button type="button" size="sm" variant="outline" className="gap-1.5" onClick={copyAiProjectFormatPrompt}>
-                      {aiProjectFormatCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                      {aiProjectFormatCopied ? text.copied : text.copyFormatPrompt}
-                    </Button>
-                  </div>
-                  <Textarea rows={4} value={aiProjectFormatPromptTemplate} readOnly className="font-mono text-xs" />
-                  <p className="text-xs text-muted-foreground">{text.splitFormatPromptHint}</p>
-                </div>
-                {(aiProjectSplitDialog.pending || aiProjectSplitDialog.success) ? (
-                  <div className="space-y-2 rounded-lg border border-black/25 bg-white p-3">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-medium text-foreground/90">{text.aiSplitProgress}</span>
-                      <span className="text-muted-foreground">{aiProjectSplitDialog.phase}</span>
-                    </div>
-                    <div className="h-2.5 overflow-hidden rounded-full bg-black/15">
-                      <motion.div
-                        className="h-full rounded-full bg-black shadow-none"
-                        initial={{ width: "0%" }}
-                        animate={{ width: `${Math.max(2, aiProjectSplitDialog.progress)}%` }}
-                        transition={{ duration: 0.35, ease: "easeOut" }}
-                      />
-                    </div>
-                    <p className="text-right text-xs font-semibold tabular-nums text-black/80">{aiProjectSplitDialog.progress}%</p>
-                  </div>
-                ) : null}
-                {aiProjectSplitDialog.error ? <p className="text-sm text-destructive">{aiProjectSplitDialog.error}</p> : null}
-                {aiProjectSplitDialog.success ? <p className="text-sm text-emerald-600">{aiProjectSplitDialog.success}</p> : null}
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setAiProjectSplitDialog(null);
-                      setAiProjectFormatCopied(false);
-                    }}
-                  >
-                    {text.cancel}
-                  </Button>
-                  <Button type="button" className="gap-2" onClick={submitAiProjectSplit} disabled={aiProjectSplitDialog.pending}>
-                    <Sparkles className="h-4 w-4" />
-                    {aiProjectSplitDialog.pending ? `${text.splitProjectByAi}...` : text.splitProjectByAi}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </motion.div>
-      ) : null}
-      {deleteDialog ? (
-        <motion.div
-          className="absolute inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.15 }}
-        >
-          <motion.div
-            initial={{ opacity: 0, y: 14, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.98 }}
-            transition={{ duration: 0.18, ease: "easeOut" }}
-            className="w-full max-w-md"
-          >
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                  {text.confirmDeleteTitle}
-                </CardTitle>
-                <CardDescription>
-                  {deleteDialog.kind === "project" ? text.deleteProjectConfirm : text.deleteTaskConfirm}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setDeleteDialog(null)}>
-                  {text.cancel}
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={() => {
-                    if (deleteDialog.kind === "project") {
-                      deleteProject(deleteDialog.id);
-                    } else {
-                      deleteTask(deleteDialog.id);
-                    }
-                    setDeleteDialog(null);
-                  }}
-                >
-                  {text.confirmAction}
-                </Button>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </motion.div>
-      ) : null}
-      {worklogDialog ? (
-        <motion.div
-          className="absolute inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.15 }}
-        >
-          <motion.div
-            initial={{ opacity: 0, y: 14, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.98 }}
-            transition={{ duration: 0.18, ease: "easeOut" }}
-            className="w-full max-w-md"
-          >
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  {text.logWorkTitle}
-                </CardTitle>
-                <CardDescription>{text.logWorkDesc}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="space-y-2">
-                  <Label>{t.field.spent}</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={worklogDialog.spentHours}
-                    onChange={(event) =>
-                      setWorklogDialog((previous) =>
-                        previous ? { ...previous, spentHours: Math.max(0, Number(event.currentTarget.value) || 0) } : previous,
-                      )
-                    }
-                  />
-                  <p className="text-xs text-muted-foreground">{text.rangeHoursHint}</p>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      const task = tasks.find((item) => item.id === worklogDialog.taskId);
-                      if (!task) {
-                        setWorklogDialog(null);
-                        return;
-                      }
-                      const finishedAtIso = new Date().toISOString();
-                      setWorklogDialog({
-                        taskId: task.id,
-                        spentHours: getSuggestedDoneSpentHours(task, finishedAtIso),
-                      });
-                    }}
-                  >
-                    {text.useRangeHours}
-                  </Button>
-                  <div className="flex gap-2">
-                    <Button type="button" variant="outline" onClick={() => setWorklogDialog(null)}>
+                    >
                       {text.cancel}
                     </Button>
                     <Button
                       type="button"
+                      className="gap-2"
+                      onClick={submitAiSplit}
+                      disabled={aiSplitDialog.pending}
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      {aiSplitDialog.pending
+                        ? `${text.generateSubtasks}...`
+                        : text.generateSubtasks}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </motion.div>
+        ) : null}
+        {aiProjectSplitDialog ? (
+          <motion.div
+            className="absolute inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 18, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="w-full max-w-2xl"
+            >
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4" />
+                    {text.aiProjectSplitTitle}
+                  </CardTitle>
+                  <CardDescription>{text.aiProjectSplitDesc}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label>{text.ollamaModel}</Label>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="xs"
+                          className="h-7 gap-1"
+                          onClick={() => {
+                            void loadOllamaModels();
+                          }}
+                          disabled={ollamaModelsLoading}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          {text.refreshModels}
+                        </Button>
+                      </div>
+                      {ollamaModels.length > 0 ? (
+                        <Select
+                          value={aiProjectSplitDialog.model}
+                          onValueChange={(value) =>
+                            setAiProjectSplitDialog((previous) =>
+                              previous
+                                ? { ...previous, model: value, error: "", success: "" }
+                                : previous,
+                            )
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ollamaModels.map((model) => (
+                              <SelectItem key={`project-${model}`} value={model}>
+                                {model}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          value={aiProjectSplitDialog.model}
+                          onChange={(event) =>
+                            setAiProjectSplitDialog((previous) =>
+                              previous
+                                ? {
+                                    ...previous,
+                                    model: event.currentTarget.value,
+                                    error: "",
+                                    success: "",
+                                  }
+                                : previous,
+                            )
+                          }
+                        />
+                      )}
+                      {ollamaModelsLoading ? (
+                        <p className="text-xs text-muted-foreground">{text.loadingModels}</p>
+                      ) : null}
+                      {ollamaModelsError ? (
+                        <p className="text-xs text-muted-foreground">{ollamaModelsError}</p>
+                      ) : null}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>{text.splitCount}</Label>
+                      <Input
+                        type="number"
+                        min={2}
+                        max={20}
+                        value={aiProjectSplitDialog.count}
+                        onChange={(event) => {
+                          const nextCount = Math.max(
+                            2,
+                            Math.min(20, Number(event.currentTarget.value) || 2),
+                          );
+                          setAiProjectFormatCopied(false);
+                          setAiProjectSplitDialog((previous) =>
+                            previous
+                              ? { ...previous, count: nextCount, error: "", success: "" }
+                              : previous,
+                          );
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{text.splitPrompt}</Label>
+                    <Textarea
+                      rows={4}
+                      value={aiProjectSplitDialog.prompt}
+                      placeholder={text.splitPromptPlaceholder}
+                      onChange={(event) =>
+                        setAiProjectSplitDialog((previous) =>
+                          previous
+                            ? {
+                                ...previous,
+                                prompt: event.currentTarget.value,
+                                error: "",
+                                success: "",
+                              }
+                            : previous,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>{text.splitDateRange}</Label>
+                      <Input
+                        type="date"
+                        value={aiProjectSplitDialog.startDate}
+                        onChange={(event) =>
+                          setAiProjectSplitDialog((previous) =>
+                            previous
+                              ? {
+                                  ...previous,
+                                  startDate: event.currentTarget.value,
+                                  error: "",
+                                  success: "",
+                                }
+                              : previous,
+                          )
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="opacity-0">{text.splitDateRange}</Label>
+                      <Input
+                        type="date"
+                        value={aiProjectSplitDialog.dueDate}
+                        onChange={(event) =>
+                          setAiProjectSplitDialog((previous) =>
+                            previous
+                              ? {
+                                  ...previous,
+                                  dueDate: event.currentTarget.value,
+                                  error: "",
+                                  success: "",
+                                }
+                              : previous,
+                          )
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label>{text.splitFormatPrompt}</Label>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5"
+                        onClick={copyAiProjectFormatPrompt}
+                      >
+                        {aiProjectFormatCopied ? (
+                          <Check className="h-3.5 w-3.5" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                        {aiProjectFormatCopied ? text.copied : text.copyFormatPrompt}
+                      </Button>
+                    </div>
+                    <Textarea
+                      rows={4}
+                      value={aiProjectFormatPromptTemplate}
+                      readOnly
+                      className="font-mono text-xs"
+                    />
+                    <p className="text-xs text-muted-foreground">{text.splitFormatPromptHint}</p>
+                  </div>
+                  {aiProjectSplitDialog.pending || aiProjectSplitDialog.success ? (
+                    <div className="space-y-2 rounded-lg border border-black/25 bg-white p-3">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-medium text-foreground/90">
+                          {text.aiSplitProgress}
+                        </span>
+                        <span className="text-muted-foreground">{aiProjectSplitDialog.phase}</span>
+                      </div>
+                      <div className="h-2.5 overflow-hidden rounded-full bg-black/15">
+                        <motion.div
+                          className="h-full rounded-full bg-black shadow-none"
+                          initial={{ width: "0%" }}
+                          animate={{ width: `${Math.max(2, aiProjectSplitDialog.progress)}%` }}
+                          transition={{ duration: 0.35, ease: "easeOut" }}
+                        />
+                      </div>
+                      <p className="text-right text-xs font-semibold tabular-nums text-black/80">
+                        {aiProjectSplitDialog.progress}%
+                      </p>
+                    </div>
+                  ) : null}
+                  {aiProjectSplitDialog.error ? (
+                    <p className="text-sm text-destructive">{aiProjectSplitDialog.error}</p>
+                  ) : null}
+                  {aiProjectSplitDialog.success ? (
+                    <p className="text-sm text-emerald-600">{aiProjectSplitDialog.success}</p>
+                  ) : null}
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setAiProjectSplitDialog(null);
+                        setAiProjectFormatCopied(false);
+                      }}
+                    >
+                      {text.cancel}
+                    </Button>
+                    <Button
+                      type="button"
+                      className="gap-2"
+                      onClick={submitAiProjectSplit}
+                      disabled={aiProjectSplitDialog.pending}
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      {aiProjectSplitDialog.pending
+                        ? `${text.splitProjectByAi}...`
+                        : text.splitProjectByAi}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </motion.div>
+        ) : null}
+        {deleteDialog ? (
+          <motion.div
+            className="absolute inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 14, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.98 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              className="w-full max-w-md"
+            >
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                    {text.confirmDeleteTitle}
+                  </CardTitle>
+                  <CardDescription>
+                    {deleteDialog.kind === "project"
+                      ? text.deleteProjectConfirm
+                      : text.deleteTaskConfirm}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex justify-end gap-2">
+                  <Button type="button" variant="outline" onClick={() => setDeleteDialog(null)}>
+                    {text.cancel}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => {
+                      if (deleteDialog.kind === "project") {
+                        deleteProject(deleteDialog.id);
+                      } else {
+                        deleteTask(deleteDialog.id);
+                      }
+                      setDeleteDialog(null);
+                    }}
+                  >
+                    {text.confirmAction}
+                  </Button>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </motion.div>
+        ) : null}
+        {worklogDialog ? (
+          <motion.div
+            className="absolute inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 14, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.98 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              className="w-full max-w-md"
+            >
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    {text.logWorkTitle}
+                  </CardTitle>
+                  <CardDescription>{text.logWorkDesc}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-2">
+                    <Label>{t.field.spent}</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={worklogDialog.spentHours}
+                      onChange={(event) =>
+                        setWorklogDialog((previous) =>
+                          previous
+                            ? {
+                                ...previous,
+                                spentHours: Math.max(0, Number(event.currentTarget.value) || 0),
+                              }
+                            : previous,
+                        )
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground">{text.rangeHoursHint}</p>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
                       onClick={() => {
                         const task = tasks.find((item) => item.id === worklogDialog.taskId);
                         if (!task) {
                           setWorklogDialog(null);
                           return;
                         }
-                        setTaskStatusWithHours(task, "done", worklogDialog.spentHours);
-                        setWorklogDialog(null);
+                        const finishedAtIso = new Date().toISOString();
+                        setWorklogDialog({
+                          taskId: task.id,
+                          spentHours: getSuggestedDoneSpentHours(task, finishedAtIso),
+                        });
                       }}
                     >
-                      {text.saveAndFinish}
+                      {text.useRangeHours}
                     </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setWorklogDialog(null)}
+                      >
+                        {text.cancel}
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          const task = tasks.find((item) => item.id === worklogDialog.taskId);
+                          if (!task) {
+                            setWorklogDialog(null);
+                            return;
+                          }
+                          setTaskStatusWithHours(task, "done", worklogDialog.spentHours);
+                          setWorklogDialog(null);
+                        }}
+                      >
+                        {text.saveAndFinish}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </motion.div>
           </motion.div>
-        </motion.div>
-      ) : null}
+        ) : null}
       </AnimatePresence>
     </div>
   );

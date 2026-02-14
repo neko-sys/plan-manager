@@ -1,10 +1,10 @@
-import { useMemo, useState } from "react";
-import { motion } from "motion/react";
 import { BarChart3, Calendar, Clock, TrendingUp } from "lucide-react";
-import { usePomodoroStore } from "@/store/pomodoroStore";
-import { dateKey } from "@/domain/pomodoro";
+import { motion } from "motion/react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { dateKey } from "@/domain/pomodoro";
 import { cn } from "@/lib/utils";
+import { usePomodoroStore } from "@/store/pomodoroStore";
 
 type StatsView = "today" | "week" | "month";
 
@@ -110,7 +110,9 @@ export function PomodoroStats({ labels }: PomodoroStatsProps) {
           >
             <TrendingUp className="h-4 w-4 text-rose-500" />
             <span className="mt-1 text-lg font-semibold">{stats.completed}</span>
-            <span className="whitespace-nowrap text-[11px] text-muted-foreground">{labels.pomodoros}</span>
+            <span className="whitespace-nowrap text-[11px] text-muted-foreground">
+              {labels.pomodoros}
+            </span>
           </motion.div>
 
           <motion.div
@@ -122,7 +124,9 @@ export function PomodoroStats({ labels }: PomodoroStatsProps) {
           >
             <Clock className="h-4 w-4 text-emerald-500" />
             <span className="mt-1 text-lg font-semibold">{stats.focusMinutes}</span>
-            <span className="whitespace-nowrap text-[11px] text-muted-foreground">{labels.minutes}</span>
+            <span className="whitespace-nowrap text-[11px] text-muted-foreground">
+              {labels.minutes}
+            </span>
           </motion.div>
 
           <motion.div
@@ -134,16 +138,14 @@ export function PomodoroStats({ labels }: PomodoroStatsProps) {
           >
             <Calendar className="h-4 w-4 text-sky-500" />
             <span className="mt-1 text-lg font-semibold">{stats.breakMinutes}</span>
-            <span className="whitespace-nowrap text-[11px] text-muted-foreground">{labels.minutes}</span>
+            <span className="whitespace-nowrap text-[11px] text-muted-foreground">
+              {labels.minutes}
+            </span>
           </motion.div>
         </div>
 
         {view === "week" && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mt-4"
-          >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
             <div className="flex items-end justify-between gap-1">
               {weekData.map((day, i) => (
                 <div key={day.date} className="flex flex-1 flex-col items-center gap-1">

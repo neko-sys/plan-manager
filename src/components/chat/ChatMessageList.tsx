@@ -1,10 +1,10 @@
-import { useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import { Bot, Copy, User, Check } from "lucide-react";
+import { Bot, Check, Copy, User } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useRef } from "react";
+import { Button } from "@/components/ui/button";
 import type { ChatMessage } from "@/domain/chat";
 import { formatChatTime } from "@/domain/chat";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 
 type ChatMessageListProps = {
   messages: ChatMessage[];
@@ -49,17 +49,12 @@ export function ChatMessageList({ messages, isStreaming }: ChatMessageListProps)
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2, delay: index * 0.05 }}
-              className={cn(
-                "flex gap-3",
-                message.role === "user" ? "flex-row-reverse" : ""
-              )}
+              className={cn("flex gap-3", message.role === "user" ? "flex-row-reverse" : "")}
             >
               <div
                 className={cn(
                   "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
-                  message.role === "user"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted"
+                  message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted",
                 )}
               >
                 {message.role === "user" ? (
@@ -72,9 +67,7 @@ export function ChatMessageList({ messages, isStreaming }: ChatMessageListProps)
               <div
                 className={cn(
                   "group relative max-w-[80%] rounded-2xl px-4 py-3",
-                  message.role === "user"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted"
+                  message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted",
                 )}
               >
                 <div className="whitespace-pre-wrap text-sm leading-relaxed">
@@ -89,7 +82,7 @@ export function ChatMessageList({ messages, isStreaming }: ChatMessageListProps)
                     "mt-2 flex items-center gap-2 text-xs",
                     message.role === "user"
                       ? "text-primary-foreground/70"
-                      : "text-muted-foreground"
+                      : "text-muted-foreground",
                   )}
                 >
                   <span>{formatChatTime(message.timestamp)}</span>

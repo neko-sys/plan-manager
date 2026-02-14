@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
 import { motion } from "motion/react";
+import { useEffect, useRef } from "react";
 import type { TimerPhase } from "@/domain/pomodoro";
 import { calculateProgress, formatTime, PHASE_COLORS } from "@/domain/pomodoro";
 
@@ -20,7 +20,13 @@ const STROKE_WIDTH = 8;
 const RADIUS = (RING_SIZE - STROKE_WIDTH) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
-export function TimerRing({ remainingSeconds, totalSeconds, phase, isRunning, phaseLabels }: TimerRingProps) {
+export function TimerRing({
+  remainingSeconds,
+  totalSeconds,
+  phase,
+  isRunning,
+  phaseLabels,
+}: TimerRingProps) {
   const progress = calculateProgress(remainingSeconds, totalSeconds);
   const strokeDashoffset = CIRCUMFERENCE * (1 - progress);
   const colors = PHASE_COLORS[phase];
@@ -56,11 +62,7 @@ export function TimerRing({ remainingSeconds, totalSeconds, phase, isRunning, ph
         className="relative"
         style={{ width: RING_SIZE, height: RING_SIZE }}
       >
-        <svg
-          width={RING_SIZE}
-          height={RING_SIZE}
-          className="transform -rotate-90"
-        >
+        <svg width={RING_SIZE} height={RING_SIZE} className="transform -rotate-90">
           <defs>
             <linearGradient id={`gradient-${phase}`} x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor={colors.primary} />
@@ -141,9 +143,7 @@ export function TimerRing({ remainingSeconds, totalSeconds, phase, isRunning, ph
                 className="h-1.5 w-1.5 rounded-full"
                 style={{ backgroundColor: colors.primary }}
               />
-              <span className="text-xs font-medium text-muted-foreground">
-                {getPhaseLabel()}
-              </span>
+              <span className="text-xs font-medium text-muted-foreground">{getPhaseLabel()}</span>
             </motion.div>
           )}
         </div>

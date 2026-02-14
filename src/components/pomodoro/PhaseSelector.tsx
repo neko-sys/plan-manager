@@ -1,5 +1,5 @@
-import { motion } from "motion/react";
 import { Coffee, Sun, Zap } from "lucide-react";
+import { motion } from "motion/react";
 import type { TimerPhase } from "@/domain/pomodoro";
 import { PHASE_COLORS } from "@/domain/pomodoro";
 import { cn } from "@/lib/utils";
@@ -34,9 +34,7 @@ export function PhaseSelector({ currentPhase, onPhaseChange, disabled }: PhaseSe
             whileTap={{ scale: disabled ? 1 : 0.95 }}
             className={cn(
               "relative flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all duration-200",
-              isActive
-                ? "text-white shadow-md"
-                : "text-muted-foreground hover:bg-muted/50",
+              isActive ? "text-white shadow-md" : "text-muted-foreground hover:bg-muted/50",
               disabled && "cursor-not-allowed opacity-50",
             )}
             style={

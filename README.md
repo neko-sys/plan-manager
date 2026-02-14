@@ -24,15 +24,15 @@ A cross-platform planning management desktop application built with Tauri + Reac
 
 ### Tech Stack
 
-| Category | Technology |
-|----------|------------|
-| Framework | Tauri v2 + React 19 + TypeScript |
-| Build | Vite 7 |
-| UI | Ant Design + shadcn/ui + Tailwind CSS v4 |
-| Icons | Lucide React |
-| Animation | Motion |
-| State Management | Zustand (persistent storage) |
-| Data Validation | Zod |
+| Category         | Technology                               |
+| ---------------- | ---------------------------------------- |
+| Framework        | Tauri v2 + React 19 + TypeScript         |
+| Build            | Vite 7                                   |
+| UI               | Ant Design + shadcn/ui + Tailwind CSS v4 |
+| Icons            | Lucide React                             |
+| Animation        | Motion                                   |
+| State Management | Zustand (persistent storage)             |
+| Data Validation  | Zod                                      |
 
 ### Project Structure
 
@@ -112,15 +112,15 @@ MIT
 
 ### 技术栈
 
-| 类别 | 技术 |
-|------|------|
-| 框架 | Tauri v2 + React 19 + TypeScript |
-| 构建 | Vite 7 |
-| UI | Ant Design + shadcn/ui + Tailwind CSS v4 |
-| 图标 | Lucide React |
-| 动画 | Motion |
-| 状态管理 | Zustand (持久化存储) |
-| 数据验证 | Zod |
+| 类别     | 技术                                     |
+| -------- | ---------------------------------------- |
+| 框架     | Tauri v2 + React 19 + TypeScript         |
+| 构建     | Vite 7                                   |
+| UI       | Ant Design + shadcn/ui + Tailwind CSS v4 |
+| 图标     | Lucide React                             |
+| 动画     | Motion                                   |
+| 状态管理 | Zustand (持久化存储)                     |
+| 数据验证 | Zod                                      |
 
 ### 项目结构
 

@@ -1,11 +1,17 @@
-import { motion } from "motion/react";
 import { Settings2, Volume2 } from "lucide-react";
-import { usePomodoroStore } from "@/store/pomodoroStore";
+import { motion } from "motion/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { usePomodoroStore } from "@/store/pomodoroStore";
 
 type PomodoroSettingsProps = {
   labels: {
@@ -99,7 +105,9 @@ export function PomodoroSettings({ labels }: PomodoroSettingsProps) {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground">{labels.sessionsBeforeLongBreak}</Label>
+            <Label className="text-xs text-muted-foreground">
+              {labels.sessionsBeforeLongBreak}
+            </Label>
             <Select
               value={settings.sessionsBeforeLongBreak.toString()}
               onValueChange={(v) => setSettings({ sessionsBeforeLongBreak: parseInt(v) })}

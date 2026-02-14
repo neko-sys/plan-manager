@@ -1,4 +1,4 @@
-import { describe, expect, beforeEach, test } from "vitest";
+import { beforeEach, describe, expect, test } from "vitest";
 import { usePomodoroStore } from "@/store/pomodoroStore";
 
 describe("pomodoro store", () => {
@@ -19,7 +19,11 @@ describe("pomodoro store", () => {
 
   test("switches to long break after configured cycle", () => {
     usePomodoroStore.setState((state) => ({
-      timer: { ...state.timer, phase: "work", completedSessionsInCycle: state.settings.sessionsBeforeLongBreak - 1 },
+      timer: {
+        ...state.timer,
+        phase: "work",
+        completedSessionsInCycle: state.settings.sessionsBeforeLongBreak - 1,
+      },
     }));
 
     const store = usePomodoroStore.getState();

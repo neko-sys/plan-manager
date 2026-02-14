@@ -23,7 +23,8 @@ export const workspaceMetrics = (projects: Project[], tasks: Task[]) => {
     .filter((project) => project.status !== "completed")
     .map((project) => toDate(project.endDate).getTime())
     .filter((time) => !Number.isNaN(time));
-  const nearestEndDate = activeEndDates.length === 0 ? today.getTime() : Math.min(...activeEndDates);
+  const nearestEndDate =
+    activeEndDates.length === 0 ? today.getTime() : Math.min(...activeEndDates);
   const remainingDays = Math.max(0, Math.ceil((nearestEndDate - today.getTime()) / DAY_MS));
 
   return {

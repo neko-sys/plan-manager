@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from "react";
-import { motion } from "motion/react";
 import { Send, Square } from "lucide-react";
+import { motion } from "motion/react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { QUICK_PROMPTS } from "@/domain/chat";
@@ -96,7 +96,7 @@ export function ChatInput({ onSend, onStop, isLoading, disabled, placeholder }: 
                   "h-11 w-11 shrink-0 transition-all",
                   input.trim() && !disabled
                     ? "bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600"
-                    : ""
+                    : "",
                 )}
               >
                 <Send className="h-4 w-4" />

@@ -1,10 +1,14 @@
 import type { OllamaGenerateRequest, OllamaStreamResponse } from "@/entities/chat";
+import { HttpClientError, httpClient } from "@/services/http/httpClient";
 import { listOllamaModels } from "@/services/tauri/commands";
 
 const OLLAMA_GENERATE_URL = "http://127.0.0.1:11434/api/generate";
 
 export class OllamaClientError extends Error {
-  constructor(message: string, public readonly causeCode?: string) {
+  constructor(
+    message: string,
+    public readonly causeCode?: string,
+  ) {
     super(message);
     this.name = "OllamaClientError";
   }
@@ -12,42 +16,66 @@ export class OllamaClientError extends Error {
 
 export type StreamChunkHandler = (chunk: OllamaStreamResponse) => void;
 
+const toOllamaError = (error: unknown, fallbackCode: string): OllamaClientError => {
+  if (error instanceof OllamaClientError) {
+    return error;
+  }
+  if (error instanceof HttpClientError) {
+    return new OllamaClientError(
+      error.status ? `HTTP ${error.status}` : error.message,
+      error.status ? "HTTP_ERROR" : fallbackCode,
+    );
+  }
+  if (error instanceof Error) {
+    return new OllamaClientError(error.message, fallbackCode);
+  }
+  return new OllamaClientError("Unknown request error", fallbackCode);
+};
+
 export const ollamaClient = {
   async listModels(): Promise<string[]> {
     try {
       const models = await listOllamaModels();
       return [...new Set(models)].sort();
     } catch (error) {
-      throw new OllamaClientError(error instanceof Error ? error.message : "Failed to list models", "LIST_MODELS_FAILED");
+      throw new OllamaClientError(
+        error instanceof Error ? error.message : "Failed to list models",
+        "LIST_MODELS_FAILED",
+      );
     }
   },
 
   async generate(request: OllamaGenerateRequest, signal?: AbortSignal): Promise<string> {
-    const response = await fetch(OLLAMA_GENERATE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...request, stream: false }),
-      signal,
-    });
-
-    if (!response.ok) {
-      throw new OllamaClientError(`HTTP ${response.status}`, "HTTP_ERROR");
+    try {
+      const payload = await httpClient.requestJson<{ response?: string }>({
+        url: OLLAMA_GENERATE_URL,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...request, stream: false }),
+        signal,
+      });
+      return payload.response ?? "";
+    } catch (error) {
+      throw toOllamaError(error, "GENERATE_FAILED");
     }
-
-    const payload = (await response.json()) as { response?: string };
-    return payload.response ?? "";
   },
 
-  async streamGenerate(request: OllamaGenerateRequest, onChunk: StreamChunkHandler, signal?: AbortSignal): Promise<string> {
-    const response = await fetch(OLLAMA_GENERATE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...request, stream: true }),
-      signal,
-    });
-
-    if (!response.ok) {
-      throw new OllamaClientError(`HTTP ${response.status}`, "HTTP_ERROR");
+  async streamGenerate(
+    request: OllamaGenerateRequest,
+    onChunk: StreamChunkHandler,
+    signal?: AbortSignal,
+  ): Promise<string> {
+    let response: Response;
+    try {
+      response = await httpClient.request({
+        url: OLLAMA_GENERATE_URL,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...request, stream: true }),
+        signal,
+      });
+    } catch (error) {
+      throw toOllamaError(error, "STREAM_GENERATE_FAILED");
     }
 
     if (!response.body) {

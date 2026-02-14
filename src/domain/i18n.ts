@@ -1,4 +1,11 @@
-import type { AppView, Locale, ProjectStatus, TaskPriority, TaskStatus, TimerPhase } from "./models";
+import type {
+  AppView,
+  Locale,
+  ProjectStatus,
+  TaskPriority,
+  TaskStatus,
+  TimerPhase,
+} from "./models";
 
 type I18nPack = {
   appTitle: string;

@@ -80,9 +80,9 @@
   --sidebar-ring: oklch(0.708 0 0);
   --pomodoro-work: oklch(0.65 0.22 25);
   --pomodoro-work-secondary: oklch(0.75 0.18 35);
-  --pomodoro-break: oklch(0.70 0.18 150);
-  --pomodoro-break-secondary: oklch(0.80 0.14 160);
-  --pomodoro-long-break: oklch(0.65 0.20 220);
+  --pomodoro-break: oklch(0.7 0.18 150);
+  --pomodoro-break-secondary: oklch(0.8 0.14 160);
+  --pomodoro-long-break: oklch(0.65 0.2 220);
   --pomodoro-long-break-secondary: oklch(0.75 0.16 230);
 }
 

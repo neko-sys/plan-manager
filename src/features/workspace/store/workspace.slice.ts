@@ -211,7 +211,8 @@ const applyProjectStatusLifecycle = (project: Project, nextStatus: ProjectStatus
 
 const applyTaskStatusLifecycle = (task: Task, nextStatus: TaskStatus): Task => {
   const now = nowTimestamp();
-  const hasPreciseActualStart = typeof task.actualStartDate === "string" && task.actualStartDate.includes("T");
+  const hasPreciseActualStart =
+    typeof task.actualStartDate === "string" && task.actualStartDate.includes("T");
   if (nextStatus === "doing") {
     return {
       ...task,
@@ -452,4 +453,3 @@ const getCurrentProjectId = (state: WorkspaceState): string | undefined =>
   state.selectedProjectId ?? state.projects[0]?.id;
 
 export type { WorkspaceState };
-

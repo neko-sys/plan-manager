@@ -1,7 +1,14 @@
 import { z } from "zod";
 
 export type Locale = "zh-CN" | "en-US";
-export type AppView = "dashboard" | "projects" | "tasks" | "notes" | "settings" | "pomodoro" | "chat";
+export type AppView =
+  | "dashboard"
+  | "projects"
+  | "tasks"
+  | "notes"
+  | "settings"
+  | "pomodoro"
+  | "chat";
 export type ThemeMode = "system" | "light" | "dark";
 export type WindowSizePreset = "small" | "medium" | "large" | "custom";
 export type TimerPhase = "work" | "shortBreak" | "longBreak";

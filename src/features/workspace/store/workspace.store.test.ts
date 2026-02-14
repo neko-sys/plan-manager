@@ -1,4 +1,4 @@
-import { describe, expect, beforeEach, test } from "vitest";
+import { beforeEach, describe, expect, test } from "vitest";
 import { useWorkspaceStore } from "@/store/workspaceStore";
 
 describe("workspace store", () => {

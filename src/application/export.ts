@@ -88,7 +88,9 @@ export const exportToCsv = (sessions: PomodoroSession[], filename?: string): voi
   );
 };
 
-export const getExportStats = (sessions: PomodoroSession[]): {
+export const getExportStats = (
+  sessions: PomodoroSession[],
+): {
   totalSessions: number;
   completedSessions: number;
   totalFocusMinutes: number;

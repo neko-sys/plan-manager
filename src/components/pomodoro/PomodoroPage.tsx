@@ -1,17 +1,13 @@
-import { useEffect, useRef, useCallback } from "react";
-import { motion } from "motion/react";
 import { Download, FileJson, FileSpreadsheet } from "lucide-react";
-import { usePomodoroStore } from "@/store/pomodoroStore";
-import { useWorkspaceStore } from "@/store/workspaceStore";
-import { packs } from "@/domain/i18n";
-import { notifyPhaseComplete } from "@/services/notifications/notificationService";
-import { exportToJson, exportToCsv } from "@/application/export";
-import { TimerRing } from "@/components/pomodoro/TimerRing";
-import { TimerControls } from "@/components/pomodoro/TimerControls";
+import { motion } from "motion/react";
+import { useCallback, useEffect, useRef } from "react";
+import { exportToCsv, exportToJson } from "@/application/export";
 import { PhaseSelector } from "@/components/pomodoro/PhaseSelector";
-import { TaskPicker } from "@/components/pomodoro/TaskPicker";
-import { PomodoroStats } from "@/components/pomodoro/PomodoroStats";
 import { PomodoroSettings } from "@/components/pomodoro/PomodoroSettings";
+import { PomodoroStats } from "@/components/pomodoro/PomodoroStats";
+import { TaskPicker } from "@/components/pomodoro/TaskPicker";
+import { TimerControls } from "@/components/pomodoro/TimerControls";
+import { TimerRing } from "@/components/pomodoro/TimerRing";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -19,6 +15,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { packs } from "@/domain/i18n";
+import { notifyPhaseComplete } from "@/services/notifications/notificationService";
+import { usePomodoroStore } from "@/store/pomodoroStore";
+import { useWorkspaceStore } from "@/store/workspaceStore";
 
 const pageTransition = {
   initial: { opacity: 0, y: 10 },
@@ -64,11 +64,7 @@ export function PomodoroPage() {
   }, [timer.isRunning, tick]);
 
   useEffect(() => {
-    if (
-      timer.remainingSeconds === 0 &&
-      prevRemainingRef.current > 0 &&
-      timer.isRunning === false
-    ) {
+    if (timer.remainingSeconds === 0 && prevRemainingRef.current > 0 && timer.isRunning === false) {
       notifyPhaseComplete(timer.phase, settings);
       completeSession();
     }

@@ -3,8 +3,8 @@ import { persist } from "zustand/middleware";
 import type { PomodoroSession, PomodoroSettings, TimerPhase } from "@/domain/pomodoro";
 import {
   createPomodoroId,
-  dateKey,
   DEFAULT_POMODORO_SETTINGS,
+  dateKey,
   getPhaseDuration,
   nowIso,
 } from "@/domain/pomodoro";
@@ -194,7 +194,10 @@ export const usePomodoroStore = create<PomodoroState>()(
               phase: nextPhase,
               remainingSeconds: nextDuration,
               totalSeconds: nextDuration,
-              isRunning: settings.autoStartBreaks && isWorkPhase ? true : settings.autoStartWork && !isWorkPhase,
+              isRunning:
+                settings.autoStartBreaks && isWorkPhase
+                  ? true
+                  : settings.autoStartWork && !isWorkPhase,
               isPaused: false,
               currentSessionId: undefined,
               completedSessionsInCycle: resetCompletedCount,
@@ -343,7 +346,7 @@ export const usePomodoroStore = create<PomodoroState>()(
         const settings = persistedState.settings ?? current.settings;
         const phase = persistedState.timer?.phase ?? current.timer.phase;
         const duration = getPhaseDuration(phase, settings) * 60;
-        
+
         return {
           ...current,
           settings,
@@ -364,4 +367,3 @@ export const usePomodoroStore = create<PomodoroState>()(
 export const selectTimerState = (state: PomodoroState) => state.timer;
 export const selectSettings = (state: PomodoroState) => state.settings;
 export const selectSessions = (state: PomodoroState) => state.sessions;
-

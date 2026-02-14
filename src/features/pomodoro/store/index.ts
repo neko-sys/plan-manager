@@ -1,1 +1,6 @@
-export { usePomodoroStore, selectTimerState, selectSettings, selectSessions } from "@/features/pomodoro/store/pomodoro.slice";
+export {
+  selectSessions,
+  selectSettings,
+  selectTimerState,
+  usePomodoroStore,
+} from "@/features/pomodoro/store/pomodoro.slice";
