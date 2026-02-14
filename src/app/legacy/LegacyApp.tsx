@@ -1889,7 +1889,8 @@ export function LegacyApp() {
                           step={0.5}
                           value={dailyCheckinForm.focusHours}
                           onChange={(event) => {
-                            setDailyCheckinForm((previous) => ({ ...previous, focusHours: Math.max(0, Number(event.currentTarget.value) || 0) }));
+                            const nextFocusHours = Math.max(0, Number(event.currentTarget?.value ?? 0) || 0);
+                            setDailyCheckinForm((previous) => ({ ...previous, focusHours: nextFocusHours }));
                             setDailyCheckinSaved(false);
                           }}
                         />
@@ -1899,7 +1900,8 @@ export function LegacyApp() {
                         <Textarea
                           value={dailyCheckinForm.reflection}
                           onChange={(event) => {
-                            setDailyCheckinForm((previous) => ({ ...previous, reflection: event.currentTarget.value }));
+                            const nextReflection = event.currentTarget?.value ?? "";
+                            setDailyCheckinForm((previous) => ({ ...previous, reflection: nextReflection }));
                             setDailyCheckinSaved(false);
                           }}
                           placeholder={locale === "zh-CN" ? "例如：今天最有效的工作方式是什么？" : "What worked best for you today?"}
